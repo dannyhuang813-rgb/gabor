@@ -11,20 +11,25 @@
     body {
         margin: 0;
         font-family: "Helvetica Neue", Arial, sans-serif;
-        background: #f0f0f0;
+        background: #d9d9d9;
         color: #111;
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 100vh;
+        height: 100vh;
+        overflow: hidden;
     }
     #app {
-        width: min(900px, 92vw);
-        background: rgba(255,255,255,0.9);
+        width: min(880px, 94vw);
+        max-height: 94vh;
+        background: rgba(255,255,255,0.92);
         border-radius: 16px;
         box-shadow: 0 18px 46px rgba(0,0,0,0.18);
-        padding: 32px;
+        padding: clamp(20px, 4vw, 32px);
         text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
     }
     h1 {
         margin-top: 0;
@@ -66,58 +71,73 @@
         box-shadow: none;
     }
     #canvasContainer {
-        position: relative;
         display: flex;
         flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        flex: 1;
+    }
+    #canvasHolder {
+        position: relative;
+        display: inline-flex;
+        justify-content: center;
         align-items: center;
     }
     canvas {
         background: #d9d9d9;
         border-radius: 16px;
-        max-width: 90vw;
-        max-height: 70vh;
+        max-width: min(82vw, 70vh);
+        max-height: min(82vw, 70vh);
     }
-    #feedback {
-        min-height: 32px;
-        font-size: clamp(20px, 5vw, 32px);
-        font-weight: bold;
-        margin-top: 18px;
+    #feedbackOverlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: clamp(26px, 7vw, 52px);
+        font-weight: 700;
+        pointer-events: none;
+        color: transparent;
+        text-shadow: 0 0 24px rgba(0,0,0,0.18);
     }
     #instructionText {
-        margin-top: 12px;
-        font-size: 18px;
+        font-size: clamp(16px, 3.6vw, 20px);
         line-height: 1.6;
-        text-align: left;
+        text-align: center;
+        margin: 0 auto;
+        padding: clamp(12px, 3vw, 18px);
         background: rgba(47,125,255,0.08);
         border-radius: 12px;
-        padding: 16px;
     }
     #touchControls {
         display: flex;
-        gap: 18px;
-        margin-top: 20px;
+        gap: clamp(12px, 4vw, 20px);
         justify-content: center;
+        width: 100%;
+        flex-wrap: wrap;
     }
     .touch-btn {
-        flex: 1;
-        max-width: 180px;
-        padding: 16px 20px;
-        font-size: 20px;
+        flex: 1 1 140px;
+        max-width: 200px;
+        padding: clamp(14px, 4vw, 18px) clamp(16px, 6vw, 24px);
+        font-size: clamp(18px, 4vw, 22px);
         border-radius: 14px;
         border: 2px solid #2f7dff;
         background: #fff;
         color: #2f7dff;
     }
     .hidden { display: none !important; }
-    #statusBar {
-        margin-top: 12px;
-        font-size: 16px;
-        color: #444;
-    }
-    #gamepadStatus {
-        margin-top: 8px;
-        font-size: 15px;
-        color: #0a5c2c;
+
+    @media (max-height: 640px) {
+        #app {
+            gap: 16px;
+            padding: 16px;
+        }
+        #instructionText {
+            font-size: 14px;
+        }
     }
 </style>
 </head>
@@ -125,27 +145,22 @@
 <div id="app">
     <div id="startScreen">
         <h1>Gabor 分类实验</h1>
-        <p>请输入参与者编号并点击“开始”。建议使用全屏模式并保证周围环境安静。</p>
+        <p>请输入参与者编号并点击“开始”。建议使用全屏并保持注意力集中。</p>
         <label for="participantInput">参与者编号</label>
         <input id="participantInput" type="text" placeholder="例如 P001" autocomplete="off" />
         <button id="startBtn">开始实验</button>
-        <div id="preRunTips">
-            <p>实验共两个区块：<strong>RB</strong> 与 <strong>II</strong>，每个 200 次判断。</p>
-            <p>使用键盘的 <strong>A</strong> 键表示类别 A，<strong>B</strong> 键表示类别 B。</p>
-            <p>支持触屏按钮与标准手柄：手柄 A 按钮=类别 A，B 按钮=类别 B。</p>
-        </div>
     </div>
     <div id="experimentScreen" class="hidden">
         <div id="instructionText"></div>
         <div id="canvasContainer">
-            <canvas id="stimulusCanvas" width="600" height="600"></canvas>
-            <div id="feedback"></div>
+            <div id="canvasHolder">
+                <canvas id="stimulusCanvas" width="600" height="600"></canvas>
+                <div id="feedbackOverlay"></div>
+            </div>
             <div id="touchControls">
                 <button class="touch-btn" data-key="a">类别 A (A)</button>
                 <button class="touch-btn" data-key="b">类别 B (B)</button>
             </div>
-            <div id="statusBar"></div>
-            <div id="gamepadStatus"></div>
         </div>
     </div>
 </div>
@@ -192,7 +207,6 @@ let canvas, ctx;
 let stimDiameterPx = 0;
 let resizeObserver;
 let gamepadMonitor = null;
-let gamepadInfoText = '';
 
 const startScreen = document.getElementById('startScreen');
 const experimentScreen = document.getElementById('experimentScreen');
@@ -200,9 +214,7 @@ const participantInput = document.getElementById('participantInput');
 const startBtn = document.getElementById('startBtn');
 const instructionText = document.getElementById('instructionText');
 const canvasEl = document.getElementById('stimulusCanvas');
-const feedbackEl = document.getElementById('feedback');
-const statusBar = document.getElementById('statusBar');
-const gamepadStatus = document.getElementById('gamepadStatus');
+const feedbackOverlay = document.getElementById('feedbackOverlay');
 
 canvas = canvasEl;
 ctx = canvas.getContext('2d');
@@ -532,27 +544,24 @@ function downloadCSV(filename, rows) {
 
 function updateInstruction(blockName) {
     if (blockName === 'RB') {
-        instructionText.innerHTML = `区块 <strong>RB</strong>：请仅根据条纹方向判断类别。\n<ol><li>看到 Gabor 圆后，在 3.5 秒内按 <strong>A</strong> 或 <strong>B</strong>。</li><li>方向绝对值 ≤ ${RB_ABS_ORI_THRESHOLD}° 判定为 A，否则为 B。</li><li>每次反馈“Correct/Wrong”表示是否正确。</li></ol>`;
+        instructionText.textContent = '请尽快判断图形属于类别 A 还是类别 B。';
     } else {
-        instructionText.innerHTML = `区块 <strong>II</strong>：请综合条纹方向与条纹数量判别类别。\n<ol><li>条纹方向与条数共同决定答案，单凭一个线索较难成功。</li><li>在 3.5 秒内按 <strong>A</strong> 或 <strong>B</strong>。</li><li>反馈告诉你是否正确，努力保持专注。</li></ol>`;
+        instructionText.textContent = '请继续保持专注，判断图形属于类别 A 或类别 B。';
     }
-}
-
-function updateStatus(blockName, index, total) {
-    statusBar.textContent = `当前区块：${blockName}，第 ${index}/${total} 题`;
 }
 
 function updateFeedback(text, isCorrect) {
     if (!text) {
-        feedbackEl.textContent = '';
+        feedbackOverlay.textContent = '';
+        feedbackOverlay.style.color = 'transparent';
         return;
     }
-    feedbackEl.textContent = text;
-    feedbackEl.style.color = isCorrect ? '#0B8A00' : '#CC1F1A';
+    feedbackOverlay.textContent = text;
+    feedbackOverlay.style.color = isCorrect ? '#0B8A00' : '#CC1F1A';
 }
 
 function showStartInstructions() {
-    instructionText.innerHTML = `请保持注意力集中，只需要判断呈现图形属于类别 <strong>A</strong> 还是 <strong>B</strong>。\n可使用键盘、触屏按钮或手柄 (A/B 键)。`;
+    instructionText.textContent = '请保持注意力集中，看到图形后尽快按下 A 或 B 进行判断。可使用键盘、触屏按钮或兼容手柄。';
 }
 
 function onResponse(key) {
@@ -569,14 +578,11 @@ function monitorGamepad() {
     function loop() {
         if (!awaitingResponse) {
             gamepadMonitor = null;
-            gamepadStatus.textContent = gamepadInfoText;
             return;
         }
         const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-        let anyActive = false;
         for (const pad of pads) {
             if (!pad) continue;
-            anyActive = true;
             const buttons = pad.buttons || [];
             if (buttons[0] && buttons[0].pressed) {
                 onResponse('a');
@@ -587,25 +593,10 @@ function monitorGamepad() {
                 break;
             }
         }
-        gamepadStatus.textContent = anyActive ? '已检测到手柄，可使用 A/B 按钮响应。' : '未检测到手柄，可接入标准手柄使用。';
         gamepadMonitor = requestAnimationFrame(loop);
     }
     gamepadMonitor = requestAnimationFrame(loop);
 }
-
-window.addEventListener('gamepadconnected', () => {
-    gamepadInfoText = '手柄已连接。';
-    if (awaitingResponse) {
-        monitorGamepad();
-    } else {
-        gamepadStatus.textContent = '手柄已连接。';
-    }
-});
-
-window.addEventListener('gamepaddisconnected', () => {
-    gamepadInfoText = '手柄未连接。';
-    gamepadStatus.textContent = '手柄未连接。';
-});
 
 function setupInputHandlers() {
     window.addEventListener('keydown', (ev) => {
@@ -647,7 +638,7 @@ function requestTermination() {
 }
 
 async function runTrial(blockName, trial, totalTrials) {
-    updateStatus(blockName, trial.trialIndex, totalTrials);
+    updateFeedback('', true);
     const trialStart = new Date().toISOString();
     if (USE_FIXATION) {
         drawFixation();
@@ -684,9 +675,6 @@ async function runTrial(blockName, trial, totalTrials) {
     });
 
     monitorGamepad();
-    if (gamepadStatus.textContent === '') {
-        gamepadStatus.textContent = '如接入手柄，可使用 A/B 按钮响应。';
-    }
 
     await Promise.race([
         responsePromise,
@@ -704,8 +692,9 @@ async function runTrial(blockName, trial, totalTrials) {
     awaitingResponse = false;
     currentResponder = null;
 
+    drawBlank();
+
     if (forcedTermination) {
-        drawBlank();
         return;
     }
 
@@ -818,8 +807,7 @@ function finishExperiment() {
     const filename = `gabor_${participantId}_${timestamp}.csv`;
     downloadCSV(filename, allResults);
     updateFeedback('实验已结束', true);
-    statusBar.textContent = '感谢参与！实验数据已保存。';
-    gamepadStatus.textContent = '';
+    instructionText.textContent = '实验已结束，感谢参与。';
 }
 
 function initResizeObserver() {
