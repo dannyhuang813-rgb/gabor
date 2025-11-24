@@ -1,1022 +1,667 @@
-+<!DOCTYPE html>
-+<html lang="zh-CN">
-+<head>
-+<meta charset="UTF-8" />
-+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-+<title>Gabor 分类实验</title>
-+<style>
-+    :root {
-+        color-scheme: light dark;
-+    }
-+    * {
-+        box-sizing: border-box;
-+    }
-+    html, body {
-+        height: 100%;
-+    }
-+    body {
-+        margin: 0;
-+        font-family: "Helvetica Neue", Arial, sans-serif;
-+        background: #d9d9d9;
-+        color: #111;
-+        min-height: 100dvh;
-+        overflow: hidden;
-+        display: flex;
-+        align-items: center;
-+        justify-content: center;
-+    }
-+    #app {
-+        position: relative;
-+        width: min(900px, 94vw);
-+        height: min(92vh, 640px);
-+        background: rgba(255,255,255,0.94);
-+        box-shadow: 0 18px 48px rgba(0,0,0,0.18);
-+        border-radius: 20px;
-+        padding: clamp(20px, 4vw, 32px);
-+        display: flex;
-+        flex-direction: column;
-+        justify-content: center;
-+        align-items: center;
-+        gap: clamp(18px, 4vw, 28px);
-+        overflow: hidden;
-+    }
-+    h1 {
-+        margin: 0;
-+        font-size: clamp(24px, 5vw, 40px);
-+        text-align: center;
-+    }
-+    p {
-+        margin: 0;
-+        text-align: center;
-+        font-size: clamp(16px, 3.8vw, 20px);
-+        line-height: 1.6;
-+    }
-+    label {
-+        display: block;
-+        width: 100%;
-+        text-align: left;
-+        font-weight: 600;
-+        margin-bottom: 8px;
-+    }
-+    input[type="text"] {
-+        width: 100%;
-+        padding: 12px 16px;
-+        border-radius: 10px;
-+        border: 1px solid #bbb;
-+        font-size: 18px;
-+    }
-+    button {
-+        border: none;
-+        border-radius: 999px;
-+        padding: 12px 32px;
-+        font-size: 18px;
-+        cursor: pointer;
-+        background: #2f7dff;
-+        color: #fff;
-+        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-+    }
-+    button:hover {
-+        transform: translateY(-1px);
-+        box-shadow: 0 10px 26px rgba(47,125,255,0.35);
-+        background: #1f5fe0;
-+    }
-+    button:disabled {
-+        opacity: 0.6;
-+        cursor: not-allowed;
-+        box-shadow: none;
-+        transform: none;
-+    }
-+    #startScreen,
-+    #experimentScreen,
-+    #finishScreen {
-+        width: 100%;
-+        flex: 1;
-+        display: flex;
-+        flex-direction: column;
-+        align-items: center;
-+        justify-content: center;
-+        gap: clamp(20px, 4vw, 32px);
-+    }
-+    #canvasHolder {
-+        position: relative;
-+        width: min(70vw, 70vh);
-+        height: min(70vw, 70vh);
-+        max-width: 500px;
-+        max-height: 500px;
-+        display: flex;
-+        align-items: center;
-+        justify-content: center;
-+        background: #d9d9d9;
-+        border-radius: 20px;
-+        overflow: hidden;
-+    }
-+    canvas {
-+        width: 100%;
-+        height: 100%;
-+        display: block;
-+    }
-+    #feedbackOverlay,
-+    #breakOverlay,
-+    #pauseOverlay {
-+        position: absolute;
-+        inset: 0;
-+        display: flex;
-+        align-items: center;
-+        justify-content: center;
-+        font-size: clamp(28px, 6vw, 56px);
-+        font-weight: 700;
-+        text-align: center;
-+        padding: 24px;
-+    }
-+    #feedbackOverlay {
-+        color: #fff;
-+        opacity: 0;
-+        pointer-events: none;
-+        transition: opacity 120ms ease;
-+    }
-+    #feedbackOverlay.show {
-+        opacity: 1;
-+    }
-+    #feedbackOverlay.correct {
-+        color: #2f9f4f;
-+    }
-+    #feedbackOverlay.wrong {
-+        color: #d63b3b;
-+    }
-+    #breakOverlay,
-+    #pauseOverlay {
-+        background: rgba(0,0,0,0.35);
-+        color: #fff;
-+        display: none;
-+        flex-direction: column;
-+        gap: 16px;
-+        font-size: clamp(24px, 6vw, 44px);
-+        pointer-events: none;
-+    }
-+    #touchZones {
-+        position: absolute;
-+        inset: 0;
-+        display: none;
-+        pointer-events: none;
-+    }
-+    .touchZone {
-+        position: absolute;
-+        top: 0;
-+        bottom: 0;
-+        width: 50%;
-+        pointer-events: auto;
-+    }
-+    .touchZone.left {
-+        left: 0;
-+    }
-+    .touchZone.right {
-+        right: 0;
-+    }
-+    #startScreen form {
-+        width: min(420px, 80vw);
-+        display: flex;
-+        flex-direction: column;
-+        gap: 12px;
-+    }
-+    #finishScreen button {
-+        margin-top: 12px;
-+    }
-+    @media (max-width: 640px) {
-+        #app {
-+            width: 94vw;
-+            height: 96vh;
-+            border-radius: 0;
-+        }
-+        #canvasHolder {
-+            width: 68vw;
-+            height: 68vw;
-+            max-width: none;
-+            max-height: none;
-+            border-radius: 16px;
-+        }
-+    }
-+</style>
-+</head>
-+<body>
-+<div id="app">
-+    <section id="startScreen">
-+        <h1>视觉判断任务</h1>
-+        <p>请输入编号并点击开始。</p>
-+        <form id="startForm">
-+            <div>
-+                <label for="participantInput">被试编号</label>
-+                <input id="participantInput" type="text" required autocomplete="off" />
-+            </div>
-+            <button type="submit" id="startBtn">开始</button>
-+        </form>
-+    </section>
-+    <section id="experimentScreen" hidden>
-+        <div id="canvasHolder">
-+            <canvas id="stimulusCanvas"></canvas>
-+            <div id="feedbackOverlay"></div>
-+            <div id="breakOverlay"></div>
-+            <div id="pauseOverlay"></div>
-+            <div id="touchZones">
-+                <div class="touchZone left" data-choice="a"></div>
-+                <div class="touchZone right" data-choice="b"></div>
-+            </div>
-+        </div>
-+    </section>
-+    <section id="finishScreen" hidden>
-+        <h1>任务结束</h1>
-+        <p>感谢参与，请确认数据已保存。</p>
-+        <button id="downloadBtn">下载数据</button>
-+    </section>
-+</div>
-+<script>
-+const CFG = Object.freeze({
-+    LINES_MIN: 4,
-+    LINES_MAX: 8,
-+    STRIPE_LEVELS: [4,5,6,7,8],
-+    ORI_MIN: -15,
-+    ORI_MAX: 15,
-+    ORI_BIN_SIZE: 1,
-+    ORI_JITTER: 0.5,
-+    RB_TOTAL: 300,
-+    II_TOTAL: 400,
-+    RB_ORI_THRESH: 0,
-+    II_WX: 0.55,
-+    II_WY: 0.45,
-+    II_BIAS: 0.0,
-+    T_DELAY: 2500,
-+    BREAK_EVERY: 50,
-+    BREAK_MAX: 20000,
-+    T_FIX: 500,
-+    T_PRE: 200,
-+    T_STIM_MAX: 2000,
-+    T_FB: 700,
-+    T_ITI: 600,
-+    ITI_JITTER: 100
-+});
-+
-+const STATE = {
-+    participant: '',
-+    session: '',
-+    delayedMode: false,
-+    dataRows: [],
-+    running: false,
-+    abort: false,
-+    currentBlock: '',
-+    currentTrialIndex: 0,
-+    responseResolver: null,
-+    responseTimer: null,
-+    acceptingInput: false,
-+    backupKey: 'gaborBackup',
-+    awaitingBreakContinue: null,
-+    lastFilename: ''
-+};
-+
-+const startScreen = document.getElementById('startScreen');
-+const experimentScreen = document.getElementById('experimentScreen');
-+const finishScreen = document.getElementById('finishScreen');
-+const startForm = document.getElementById('startForm');
-+const participantInput = document.getElementById('participantInput');
-+const stimulusCanvas = document.getElementById('stimulusCanvas');
-+const canvasHolder = document.getElementById('canvasHolder');
-+const feedbackOverlay = document.getElementById('feedbackOverlay');
-+const breakOverlay = document.getElementById('breakOverlay');
-+const pauseOverlay = document.getElementById('pauseOverlay');
-+const touchZones = document.getElementById('touchZones');
-+const downloadBtn = document.getElementById('downloadBtn');
-+
-+const ctx = stimulusCanvas.getContext('2d');
-+let canvasInfo = { cx: 0, cy: 0, diameter: 0, cssDiameter: 0, dpr: 1 };
-+
-+function updateCanvasSize() {
-+    const dpr = window.devicePixelRatio || 1;
-+    const side = Math.min(canvasHolder.clientWidth, canvasHolder.clientHeight);
-+    const cssDiameter = side * 0.9;
-+    const pixelDiameter = Math.max(1, Math.round(cssDiameter * dpr));
-+    stimulusCanvas.width = pixelDiameter;
-+    stimulusCanvas.height = pixelDiameter;
-+    stimulusCanvas.style.width = `${Math.round(cssDiameter)}px`;
-+    stimulusCanvas.style.height = `${Math.round(cssDiameter)}px`;
-+    ctx.setTransform(1, 0, 0, 1, 0, 0);
-+    canvasInfo = {
-+        cx: pixelDiameter / 2,
-+        cy: pixelDiameter / 2,
-+        diameter: pixelDiameter,
-+        cssDiameter,
-+        dpr
-+    };
-+    clearCanvas();
-+}
-+
-+function clearCanvas() {
-+    ctx.fillStyle = '#d9d9d9';
-+    ctx.fillRect(0, 0, canvasInfo.diameter, canvasInfo.diameter);
-+}
-+
-+function seededHash(str) {
-+    let h = 2166136261;
-+    for (let i = 0; i < str.length; i++) {
-+        h ^= str.charCodeAt(i);
-+        h = Math.imul(h, 16777619);
-+    }
-+    return h >>> 0;
-+}
-+
-+function makeRNG(seedString) {
-+    let seed = seededHash(seedString) || 1;
-+    return function() {
-+        seed |= 0;
-+        seed = seed + 0x6D2B79F5 | 0;
-+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
-+    };
-+}
-+
-+function shuffleInPlace(arr, rng) {
-+    for (let i = arr.length - 1; i > 0; i--) {
-+        const j = Math.floor(rng() * (i + 1));
-+        [arr[i], arr[j]] = [arr[j], arr[i]];
-+    }
-+    return arr;
-+}
-+
-+function getStripeLevels() {
-+    if (Array.isArray(CFG.STRIPE_LEVELS) && CFG.STRIPE_LEVELS.length) {
-+        return [...CFG.STRIPE_LEVELS];
-+    }
-+    const levels = [];
-+    for (let n = CFG.LINES_MIN; n <= CFG.LINES_MAX; n++) {
-+        levels.push(n);
-+    }
-+    return levels;
-+}
-+
-+function rbLabel(oriDeg, thresh = CFG.RB_ORI_THRESH) {
-+    return oriDeg >= thresh ? 'B' : 'A';
-+}
-+
-+function iiScore(sfLines, oriDeg) {
-+    const x = (sfLines - 6) / 2;
-+    const y = oriDeg / 15;
-+    return CFG.II_WX * x + CFG.II_WY * y + CFG.II_BIAS;
-+}
-+
-+function iiLabel(sfLines, oriDeg) {
-+    return iiScore(sfLines, oriDeg) > 0 ? 'B' : 'A';
-+}
-+
-+function jitteredOriForRB(layerDeg, desiredLabel, rng) {
-+    const minOri = Math.max(CFG.ORI_MIN, layerDeg - CFG.ORI_JITTER);
-+    const maxOri = Math.min(CFG.ORI_MAX, layerDeg + CFG.ORI_JITTER);
-+    if (desiredLabel === 'B') {
-+        const minTarget = Math.max(minOri, CFG.RB_ORI_THRESH);
-+        const range = Math.max(0, maxOri - minTarget);
-+        return range === 0 ? minTarget : minTarget + rng() * range;
-+    }
-+    const maxTarget = Math.min(maxOri, CFG.RB_ORI_THRESH - 1e-4);
-+    const range = Math.max(0, maxTarget - minOri);
-+    return range === 0 ? maxTarget : minOri + rng() * range;
-+}
-+
-+function jitteredOriForII(layerDeg, sfLines, desiredLabel, rng) {
-+    const minOri = Math.max(CFG.ORI_MIN, layerDeg - CFG.ORI_JITTER);
-+    const maxOri = Math.min(CFG.ORI_MAX, layerDeg + CFG.ORI_JITTER);
-+    for (let attempt = 0; attempt < 12; attempt++) {
-+        const candidate = minOri + (maxOri - minOri) * rng();
-+        if (iiLabel(sfLines, candidate) === desiredLabel) {
-+            return candidate;
-+        }
-+    }
-+    if (CFG.II_WY !== 0) {
-+        const x = (sfLines - 6) / 2;
-+        const yBoundary = -(CFG.II_WX * x + CFG.II_BIAS) / CFG.II_WY;
-+        const oriBoundary = Math.max(CFG.ORI_MIN, Math.min(CFG.ORI_MAX, yBoundary * 15));
-+        const epsilon = 0.05;
-+        let candidate = desiredLabel === 'B' ? oriBoundary + epsilon : oriBoundary - epsilon;
-+        candidate = Math.max(minOri, Math.min(maxOri, candidate));
-+        if (iiLabel(sfLines, candidate) === desiredLabel) {
-+            return candidate;
-+        }
-+    }
-+    return desiredLabel === 'B' ? maxOri : minOri;
-+}
-+
-+function makeTrialsRB(participant) {
-+    const rng = makeRNG(`${participant}-RB`);
-+    const stripes = getStripeLevels();
-+    const layers = [];
-+    for (let deg = CFG.ORI_MIN; deg <= CFG.ORI_MAX; deg += CFG.ORI_BIN_SIZE) {
-+        layers.push(deg);
-+    }
-+    const negLayers = layers.filter(v => v < CFG.RB_ORI_THRESH);
-+    const posLayers = layers.filter(v => v >= CFG.RB_ORI_THRESH);
-+    const counts = new Map();
-+
-+    function assignCounts(layerSet, totalTarget) {
-+        const base = Math.floor(totalTarget / layerSet.length);
-+        let remainder = totalTarget - base * layerSet.length;
-+        const shuffled = shuffleInPlace([...layerSet], makeRNG(`spread-${participant}-${layerSet.length}-${totalTarget}`));
-+        shuffled.forEach(layer => {
-+            const extra = remainder > 0 ? 1 : 0;
-+            if (remainder > 0) remainder--;
-+            counts.set(layer, (counts.get(layer) || 0) + base + extra);
-+        });
-+    }
-+
-+    assignCounts(negLayers, CFG.RB_TOTAL / 2);
-+    assignCounts(posLayers, CFG.RB_TOTAL / 2);
-+
-+    const trials = [];
-+    for (const layer of layers) {
-+        const desiredLabel = layer >= CFG.RB_ORI_THRESH ? 'B' : 'A';
-+        const count = counts.get(layer) || 0;
-+        for (let i = 0; i < count; i++) {
-+            const sf = stripes[Math.floor(rng() * stripes.length)];
-+            const ori = jitteredOriForRB(layer, desiredLabel, rng);
-+            const label = rbLabel(ori);
-+            trials.push({ blockName: 'RB', sfLines: sf, oriDeg: ori, label, correctKey: label === 'A' ? 'a' : 'b' });
-+        }
-+    }
-+    shuffleInPlace(trials, rng);
-+    return trials;
-+}
-+
-+function comboCanYieldLabel(layerDeg, sfLines, desiredLabel) {
-+    const testRng = makeRNG(`${layerDeg}-${sfLines}-${desiredLabel}`);
-+    const ori = jitteredOriForII(layerDeg, sfLines, desiredLabel, testRng);
-+    return iiLabel(sfLines, ori) === desiredLabel;
-+}
-+
-+function makeTrialsII(participant) {
-+    const rng = makeRNG(`${participant}-II`);
-+    const stripes = getStripeLevels();
-+    const layers = [];
-+    for (let deg = CFG.ORI_MIN; deg <= CFG.ORI_MAX; deg += CFG.ORI_BIN_SIZE) {
-+        layers.push(deg);
-+    }
-+    const combos = [];
-+    for (const layer of layers) {
-+        for (const sf of stripes) {
-+            const baseScore = iiScore(sf, layer);
-+            const baseLabel = baseScore > 0 ? 'B' : 'A';
-+            const absScore = Math.abs(baseScore);
-+            combos.push({ layer, sf, baseLabel, absScore });
-+        }
-+    }
-+    const remaining = { 'A': CFG.II_TOTAL / 2, 'B': CFG.II_TOTAL / 2 };
-+    const trials = [];
-+    const shuffledCombos = shuffleInPlace([...combos], rng);
-+
-+    for (const combo of shuffledCombos) {
-+        if (trials.length >= CFG.II_TOTAL) break;
-+        const preferLabel = remaining['A'] > remaining['B'] ? 'A' : 'B';
-+        let targetLabel = preferLabel;
-+        if (!comboCanYieldLabel(combo.layer, combo.sf, targetLabel)) {
-+            const fallback = targetLabel === 'A' ? 'B' : 'A';
-+            if (comboCanYieldLabel(combo.layer, combo.sf, fallback)) {
-+                targetLabel = fallback;
-+            }
-+        }
-+        const ori = jitteredOriForII(combo.layer, combo.sf, targetLabel, rng);
-+        const label = iiLabel(combo.sf, ori);
-+        trials.push({ blockName: 'II', sfLines: combo.sf, oriDeg: ori, label, correctKey: label === 'A' ? 'a' : 'b', score: iiScore(combo.sf, ori) });
-+        remaining[label] = Math.max(0, remaining[label] - 1);
-+    }
-+
-+    const needMore = CFG.II_TOTAL - trials.length;
-+    if (needMore > 0) {
-+        const byLabel = { 'A': [], 'B': [] };
-+        for (const combo of combos) {
-+            if (comboCanYieldLabel(combo.layer, combo.sf, 'A')) {
-+                byLabel['A'].push(combo);
-+            }
-+            if (comboCanYieldLabel(combo.layer, combo.sf, 'B')) {
-+                byLabel['B'].push(combo);
-+            }
-+        }
-+        byLabel['A'].sort((a, b) => a.absScore - b.absScore);
-+        byLabel['B'].sort((a, b) => a.absScore - b.absScore);
-+        const indices = { 'A': 0, 'B': 0 };
-+        while (trials.length < CFG.II_TOTAL) {
-+            let labelNeeded = remaining['A'] > remaining['B'] ? 'A' : 'B';
-+            let pool = byLabel[labelNeeded];
-+            if (!pool.length) {
-+                labelNeeded = labelNeeded === 'A' ? 'B' : 'A';
-+                pool = byLabel[labelNeeded];
-+            }
-+            if (!pool.length) break;
-+            const combo = pool[indices[labelNeeded] % pool.length];
-+            indices[labelNeeded]++;
-+            const ori = jitteredOriForII(combo.layer, combo.sf, labelNeeded, rng);
-+            const label = iiLabel(combo.sf, ori);
-+            trials.push({ blockName: 'II', sfLines: combo.sf, oriDeg: ori, label, correctKey: label === 'A' ? 'a' : 'b', score: iiScore(combo.sf, ori) });
-+            remaining[label] = Math.max(0, remaining[label] - 1);
-+        }
-+    }
-+
-+    shuffleInPlace(trials, rng);
-+
-+    const countA = trials.filter(t => t.label === 'A').length;
-+    const countB = trials.length - countA;
-+    const diff = countA - countB;
-+    if (Math.abs(diff) > 1) {
-+        const majority = diff > 0 ? 'A' : 'B';
-+        const minority = majority === 'A' ? 'B' : 'A';
-+        const sorted = trials
-+            .map((trial, idx) => ({ trial, idx }))
-+            .filter(item => item.trial.label === majority)
-+            .sort((a, b) => Math.abs(a.trial.score) - Math.abs(b.trial.score));
-+        for (const item of sorted) {
-+            if (Math.abs(trials.filter(t => t.label === 'A').length - trials.filter(t => t.label === 'B').length) <= 1) break;
-+            const combo = { layer: Math.round(item.trial.oriDeg), sf: item.trial.sfLines, absScore: Math.abs(item.trial.score) };
-+            const newOri = jitteredOriForII(combo.layer, combo.sf, minority, rng);
-+            const newLabel = iiLabel(combo.sf, newOri);
-+            if (newLabel !== minority) continue;
-+            trials[item.idx] = { blockName: 'II', sfLines: combo.sf, oriDeg: newOri, label: newLabel, correctKey: newLabel === 'A' ? 'a' : 'b', score: iiScore(combo.sf, newOri) };
-+        }
-+    }
-+
-+    return trials.map(({ score, ...rest }) => rest);
-+}
-+
-+function insertBreaks(trials) {
-+    const withBreaks = [];
-+    let trialCounter = 0;
-+    for (const trial of trials) {
-+        withBreaks.push({ type: 'trial', ...trial });
-+        trialCounter++;
-+        if (trialCounter % CFG.BREAK_EVERY === 0 && trialCounter < trials.length) {
-+            withBreaks.push({ type: 'break' });
-+        }
-+    }
-+    return withBreaks;
-+}
-+
-+function drawFixation() {
-+    clearCanvas();
-+    const { cx, cy } = canvasInfo;
-+    const arm = canvasInfo.diameter * 0.08;
-+    ctx.strokeStyle = '#000';
-+    ctx.lineWidth = Math.max(2, canvasInfo.diameter * 0.01);
-+    ctx.beginPath();
-+    ctx.moveTo(cx - arm, cy);
-+    ctx.lineTo(cx + arm, cy);
-+    ctx.moveTo(cx, cy - arm);
-+    ctx.lineTo(cx, cy + arm);
-+    ctx.stroke();
-+}
-+
-+function drawBlank() {
-+    clearCanvas();
-+}
-+
-+function drawGabor(ctx, cx, cy, diameterPx, oriDeg, sfLines) {
-+    const cycles = sfLines / 2; // 直径方向上 sfLines 条黑白条纹 → 周期数 cycles
-+    const radius = diameterPx / 2;
-+    const size = Math.ceil(diameterPx);
-+    const startX = Math.round(cx - radius);
-+    const startY = Math.round(cy - radius);
-+    const imageData = ctx.createImageData(size, size);
-+    const data = imageData.data;
-+    const oriRad = oriDeg * Math.PI / 180;
-+    const cos = Math.cos(oriRad);
-+    const sin = Math.sin(oriRad);
-+
-+    for (let y = 0; y < size; y++) {
-+        for (let x = 0; x < size; x++) {
-+            const relX = x - size / 2;
-+            const relY = y - size / 2;
-+            const dist = Math.sqrt(relX * relX + relY * relY);
-+            const idx = (y * size + x) * 4;
-+            if (dist <= radius) {
-+                const rot = relX * cos + relY * sin;
-+                const phase = (rot / diameterPx) * cycles * 2 * Math.PI;
-+                const value = 0.5 + 0.5 * Math.sin(phase);
-+                const gray = Math.round(value * 255);
-+                data[idx] = gray;
-+                data[idx + 1] = gray;
-+                data[idx + 2] = gray;
-+                data[idx + 3] = 255;
-+            } else {
-+                data[idx] = 217;
-+                data[idx + 1] = 217;
-+                data[idx + 2] = 217;
-+                data[idx + 3] = 255;
-+            }
-+        }
-+    }
-+    ctx.putImageData(imageData, startX, startY);
-+    ctx.save();
-+    ctx.strokeStyle = '#000';
-+    ctx.lineWidth = Math.max(2, diameterPx * 0.012);
-+    ctx.beginPath();
-+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-+    ctx.stroke();
-+    ctx.restore();
-+}
-+
-+function renderStimulus(sfLines, oriDeg) {
-+    drawBlank();
-+    drawGabor(ctx, canvasInfo.cx, canvasInfo.cy, canvasInfo.diameter, oriDeg, sfLines);
-+}
-+
-+function hideFeedback() {
-+    feedbackOverlay.textContent = '';
-+    feedbackOverlay.className = '';
-+}
-+
-+function showFeedback(correct) {
-+    feedbackOverlay.textContent = correct ? 'Correct' : 'Wrong';
-+    feedbackOverlay.className = correct ? 'show correct' : 'show wrong';
-+}
-+
-+function showBreakOverlay(remainingMs) {
-+    breakOverlay.style.display = 'flex';
-+    breakOverlay.innerHTML = `<div>休息一下</div><div style="font-size:0.6em">空格继续 · ${Math.ceil(remainingMs/1000)}s</div>`;
-+}
-+
-+function hideBreakOverlay() {
-+    breakOverlay.style.display = 'none';
-+    breakOverlay.textContent = '';
-+}
-+
-+function showPauseOverlay(message) {
-+    pauseOverlay.style.display = 'flex';
-+    pauseOverlay.textContent = message;
-+}
-+
-+function hidePauseOverlay() {
-+    pauseOverlay.style.display = 'none';
-+    pauseOverlay.textContent = '';
-+}
-+
-+function wait(ms) {
-+    return new Promise(resolve => setTimeout(resolve, ms));
-+}
-+
-+let gamepadLoop = null;
-+const gamepadState = { left: false, right: false };
-+
-+function buttonPressed(button) {
-+    if (!button) return false;
-+    if (typeof button === 'object') {
-+        return button.pressed;
-+    }
-+    return button === 1;
-+}
-+
-+function pollGamepads() {
-+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-+    let leftActive = false;
-+    let rightActive = false;
-+    for (const pad of pads) {
-+        if (!pad) continue;
-+        const buttons = pad.buttons || [];
-+        const axes = pad.axes || [];
-+        const left = buttonPressed(buttons[14]) || buttonPressed(buttons[0]) || (axes[0] !== undefined && axes[0] < -0.5);
-+        const right = buttonPressed(buttons[15]) || buttonPressed(buttons[1]) || (axes[0] !== undefined && axes[0] > 0.5);
-+        leftActive = leftActive || left;
-+        rightActive = rightActive || right;
-+    }
-+    if (leftActive && !gamepadState.left) {
-+        registerResponse('a');
-+    }
-+    if (rightActive && !gamepadState.right) {
-+        registerResponse('b');
-+    }
-+    gamepadState.left = leftActive;
-+    gamepadState.right = rightActive;
-+    gamepadLoop = requestAnimationFrame(pollGamepads);
-+}
-+
-+function startGamepadLoop() {
-+    if (gamepadLoop !== null) return;
-+    gamepadLoop = requestAnimationFrame(pollGamepads);
-+}
-+
-+function stopGamepadLoop() {
-+    if (gamepadLoop !== null) {
-+        cancelAnimationFrame(gamepadLoop);
-+        gamepadLoop = null;
-+    }
-+    gamepadState.left = false;
-+    gamepadState.right = false;
-+}
-+
-+function setupInputListeners() {
-+    document.addEventListener('keydown', handleKeyDown);
-+    document.addEventListener('pointerdown', handlePointerDown);
-+    window.addEventListener('resize', updateCanvasSize);
-+    window.addEventListener('beforeunload', handleBeforeUnload);
-+    startGamepadLoop();
-+}
-+
-+function removeInputListeners() {
-+    document.removeEventListener('keydown', handleKeyDown);
-+    document.removeEventListener('pointerdown', handlePointerDown);
-+    window.removeEventListener('resize', updateCanvasSize);
-+    window.removeEventListener('beforeunload', handleBeforeUnload);
-+    stopGamepadLoop();
-+}
-+
-+function handlePointerDown(event) {
-+    if (!STATE.acceptingInput) return;
-+    const x = event.clientX;
-+    const isLeft = x < window.innerWidth / 2;
-+    registerResponse(isLeft ? 'a' : 'b');
-+}
-+
-+function mapKeyToResponse(event) {
-+    const key = event.key.toLowerCase();
-+    if (key === 'a' || key === 'arrowleft') return 'a';
-+    if (key === 'b' || key === 'arrowright') return 'b';
-+    return null;
-+}
-+
-+function handleKeyDown(event) {
-+    if (event.key === 'Escape') {
-+        event.preventDefault();
-+        abortExperiment();
-+        return;
-+    }
-+    if (STATE.awaitingBreakContinue && event.code === 'Space') {
-+        event.preventDefault();
-+        const resolver = STATE.awaitingBreakContinue;
-+        STATE.awaitingBreakContinue = null;
-+        resolver(false);
-+        return;
-+    }
-+    if (!STATE.acceptingInput) return;
-+    const mapped = mapKeyToResponse(event);
-+    if (mapped) {
-+        event.preventDefault();
-+        registerResponse(mapped);
-+    }
-+}
-+
-+function registerResponse(key) {
-+    if (!STATE.acceptingInput || !STATE.responseResolver) return;
-+    STATE.acceptingInput = false;
-+    if (STATE.responseTimer) {
-+        clearTimeout(STATE.responseTimer);
-+        STATE.responseTimer = null;
-+    }
-+    STATE.responseResolver({ key, timeout: false });
-+    STATE.responseResolver = null;
-+}
-+
-+function waitForResponse(limitMs, startTime) {
-+    return new Promise(resolve => {
-+        STATE.acceptingInput = true;
-+        STATE.responseResolver = resolve;
-+        STATE.responseTimer = setTimeout(() => {
-+            STATE.acceptingInput = false;
-+            STATE.responseResolver = null;
-+            resolve({ key: 'NA', timeout: true });
-+        }, limitMs);
-+    });
-+}
-+
-+async function runBreak() {
-+    hideFeedback();
-+    drawBlank();
-+    let elapsed = 0;
-+    const interval = 250;
-+    let resolver;
-+    const promise = new Promise(resolve => {
-+        resolver = resolve;
-+    });
-+    STATE.awaitingBreakContinue = resolver;
-+    const start = performance.now();
-+    const tick = () => {
-+        const remaining = Math.max(0, CFG.BREAK_MAX - elapsed);
-+        showBreakOverlay(remaining);
-+        if (remaining <= 0) {
-+            if (STATE.awaitingBreakContinue) {
-+                STATE.awaitingBreakContinue(false);
-+                STATE.awaitingBreakContinue = null;
-+            }
-+            return;
-+        }
-+        if (!STATE.awaitingBreakContinue) return;
-+        setTimeout(() => {
-+            elapsed = performance.now() - start;
-+            tick();
-+        }, interval);
-+    };
-+    tick();
-+    await Promise.race([
-+        promise,
-+        wait(CFG.BREAK_MAX).then(() => true)
-+    ]);
-+    STATE.awaitingBreakContinue = null;
-+    hideBreakOverlay();
-+}
-+
-+async function runTrial(trial, index) {
-+    hideFeedback();
-+    drawFixation();
-+    const trialStartUTC = new Date().toISOString();
-+    await wait(CFG.T_FIX);
-+    drawBlank();
-+    await wait(CFG.T_PRE);
-+    if (STATE.delayedMode) {
-+        drawBlank();
-+        await wait(CFG.T_DELAY);
-+    }
-+    const stimStart = performance.now();
-+    renderStimulus(trial.sfLines, trial.oriDeg);
-+    const responsePromise = waitForResponse(CFG.T_STIM_MAX, stimStart);
-+    const response = await responsePromise;
-+    const rt = response.timeout ? '' : ((performance.now() - stimStart) / 1000).toFixed(3);
-+    drawBlank();
-+    if (STATE.abort) {
-+        return;
-+    }
-+    const correct = response.key === trial.correctKey;
-+    const corrFlag = response.timeout ? 0 : (correct ? 1 : 0);
-+    if (response.timeout) {
-+        showFeedback(false);
-+    } else {
-+        showFeedback(correct);
-+    }
-+    await wait(CFG.T_FB);
-+    hideFeedback();
-+    drawBlank();
-+    const jitter = CFG.ITI_JITTER > 0 ? (CFG.ITI_JITTER * (Math.random() * 2 - 1)) : 0;
-+    await wait(Math.max(0, CFG.T_ITI + jitter));
-+
-+    const row = {
-+        participant: STATE.participant,
-+        session: STATE.session,
-+        blockName: trial.blockName,
-+        trialIndex: index,
-+        sf: trial.sfLines,
-+        ori: Number(trial.oriDeg.toFixed(3)),
-+        label: trial.label,
-+        correctKey: trial.correctKey,
-+        resp: response.key,
-+        corr: response.timeout ? 0 : (correct ? 1 : 0),
-+        rt: rt,
-+        timeout: response.timeout ? 1 : 0,
-+        trialStartUTC
-+    };
-+    STATE.dataRows.push(row);
-+    persistBackup();
-+}
-+
-+function persistBackup() {
-+    try {
-+        const payload = {
-+            participant: STATE.participant,
-+            session: STATE.session,
-+            rows: STATE.dataRows
-+        };
-+        localStorage.setItem(STATE.backupKey, JSON.stringify(payload));
-+    } catch (err) {
-+        console.warn('无法写入本地备份', err);
-+    }
-+}
-+
-+function buildCSV(rows) {
-+    const headers = ['participant','session','blockName','trialIndex','sf','ori','label','correctKey','resp','corr','rt','timeout','trialStartUTC'];
-+    const lines = [headers.join(',')];
-+    for (const row of rows) {
-+        const values = headers.map(key => {
-+            const value = row[key] ?? '';
-+            if (typeof value === 'string' && value.includes(',')) {
-+                return `"${value.replace(/"/g, '""')}"`;
-+            }
-+            return value;
-+        });
-+        lines.push(values.join(','));
-+    }
-+    return lines.join('\n');
-+}
-+
-+function downloadCSV(filename, rows) {
-+    if (!rows.length) return;
-+    const csv = buildCSV(rows);
-+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-+    const url = URL.createObjectURL(blob);
-+    const a = document.createElement('a');
-+    a.href = url;
-+    a.download = filename;
-+    document.body.appendChild(a);
-+    a.click();
-+    document.body.removeChild(a);
-+    setTimeout(() => URL.revokeObjectURL(url), 1000);
-+}
-+
-+function handleBeforeUnload(event) {
-+    if (!STATE.dataRows.length) return;
-+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-+    const filename = `gabor_${STATE.participant || 'session'}_${timestamp}.csv`;
-+    downloadCSV(filename, STATE.dataRows);
-+}
-+
-+function abortExperiment() {
-+    if (!STATE.running) return;
-+    STATE.abort = true;
-+    STATE.acceptingInput = false;
-+    if (STATE.responseResolver) {
-+        STATE.responseResolver({ key: 'NA', timeout: true });
-+        STATE.responseResolver = null;
-+    }
-+    if (STATE.responseTimer) {
-+        clearTimeout(STATE.responseTimer);
-+        STATE.responseTimer = null;
-+    }
-+    endExperiment();
-+}
-+
-+async function runBlock(blockName, baseTrials) {
-+    STATE.currentBlock = blockName;
-+    STATE.currentTrialIndex = 0;
-+    const queue = insertBreaks(baseTrials);
-+    for (const item of queue) {
-+        if (STATE.abort) break;
-+        if (item.type === 'break') {
-+            await runBreak();
-+            continue;
-+        }
-+        STATE.currentTrialIndex++;
-+        await runTrial(item, STATE.currentTrialIndex);
-+    }
-+}
-+
-+async function runExperiment() {
-+    STATE.running = true;
-+    const rbTrials = makeTrialsRB(STATE.participant);
-+    const iiTrials = makeTrialsII(STATE.participant);
-+    await runBlock('RB', rbTrials);
-+    if (!STATE.abort) {
-+        await runBlock('II', iiTrials);
-+    }
-+    endExperiment();
-+}
-+
-+function endExperiment() {
-+    if (!finishScreen.hidden) {
-+        return;
-+    }
-+    STATE.running = false;
-+    removeInputListeners();
-+    hideFeedback();
-+    hideBreakOverlay();
-+    hidePauseOverlay();
-+    drawBlank();
-+    experimentScreen.hidden = true;
-+    finishScreen.hidden = false;
-+    touchZones.style.display = 'none';
-+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-+    const filename = `gabor_${STATE.participant || 'session'}_${timestamp}.csv`;
-+    STATE.lastFilename = filename;
-+    downloadCSV(filename, STATE.dataRows);
-+}
-+
-+async function requestFullscreen() {
-+    if (document.fullscreenElement) return;
-+    try {
-+        if (document.documentElement.requestFullscreen) {
-+            await document.documentElement.requestFullscreen();
-+        }
-+    } catch (err) {
-+        console.warn('无法全屏', err);
-+    }
-+}
-+
-+startForm.addEventListener('submit', async (event) => {
-+    event.preventDefault();
-+    const participant = participantInput.value.trim();
-+    if (!participant) return;
-+    STATE.participant = participant;
-+    STATE.session = new Date().toISOString();
-+    STATE.delayedMode = /^[A-Za-z]/.test(participant);
-+    startScreen.hidden = true;
-+    finishScreen.hidden = true;
-+    experimentScreen.hidden = false;
-+    touchZones.style.display = 'block';
-+    updateCanvasSize();
-+    setupInputListeners();
-+    await requestFullscreen();
-+    STATE.abort = false;
-+    STATE.dataRows = [];
-+    STATE.lastFilename = '';
-+    persistBackup();
-+    runExperiment();
-+});
-+
-+downloadBtn.addEventListener('click', () => {
-+    if (!STATE.dataRows.length) return;
-+    const filename = STATE.lastFilename || `gabor_${STATE.participant || 'session'}_${Date.now()}.csv`;
-+    downloadCSV(filename, STATE.dataRows);
-+});
-+
-+updateCanvasSize();
-+</script>
-+</body>
-+</html>
- 
-EOF
-)
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gabor Category Learning (II Only)</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    * {
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+      user-select: none; /* 防止触摸屏长按选中 */
+    }
+    body, html {
+      margin: 0;
+      height: 100%;
+      background: #808080; /* 标准中性灰背景 */
+      color: #111;
+      overflow: hidden; /* 禁止滚动 */
+    }
+    
+    /* 界面容器 */
+    #startScreen, #experimentContainer, #breakScreen, #endScreen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      z-index: 100;
+      background: #808080;
+    }
+
+    /* 隐藏类 */
+    .hidden {
+      display: none !important;
+    }
+
+    /* 输入框样式 */
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      text-align: left;
+    }
+    label {
+      font-weight: bold;
+      font-size: 16px;
+    }
+    input, select {
+      padding: 10px;
+      font-size: 18px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      min-width: 260px;
+    }
+
+    /* 按钮样式 */
+    button {
+      padding: 14px 28px;
+      font-size: 20px;
+      border-radius: 8px;
+      border: none;
+      background: #2c7be5;
+      color: #fff;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+    button:active {
+      transform: translateY(2px);
+    }
+
+    /* 画布 */
+    #canvasWrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      cursor: none; /* 实验中隐藏鼠标 */
+    }
+    canvas {
+      display: block;
+      background: #808080;
+    }
+
+    /* 反馈显示 */
+    #feedbackOverlay {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 60px;
+      font-weight: bold;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    /* 触摸屏按钮 */
+    #responseButtons {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 40px;
+      z-index: 10;
+    }
+    .resp-btn {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      font-size: 32px;
+      font-weight: bold;
+      background: rgba(255,255,255,0.2);
+      border: 2px solid #fff;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation; 
+    }
+    .resp-btn:active {
+      background: rgba(255,255,255,0.5);
+    }
+
+    /* 进度条 */
+    #progressInfo {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      color: #eee;
+      font-size: 14px;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="startScreen">
+    <h1>Gabor 类别学习 (II)</h1>
+    
+    <div class="input-group">
+      <label for="participantInput">被试编号 (如: 112, B222)</label>
+      <input type="text" id="participantInput" placeholder="输入编号" autocomplete="off">
+    </div>
+
+    <div class="input-group">
+      <label for="sessionInput">当前是第几次实验 (Session)?</label>
+      <select id="sessionInput">
+        <option value="1">Session 1</option>
+        <option value="2">Session 2</option>
+      </select>
+    </div>
+
+    <div style="margin-top:10px; font-size: 14px; color: #333; max-width: 300px;">
+      说明：<br>
+      1开头 (如101) -> 先 Movement 后 Seated<br>
+      2开头 (如201) -> 先 Seated 后 Movement<br>
+      B开头 -> 标记为 Delayed 组
+    </div>
+
+    <button id="startButton" onclick="attemptStart()">开始实验</button>
+    <p id="errorMsg" style="color: red; display: none;"></p>
+  </div>
+
+  <div id="experimentContainer">
+    <div id="canvasWrapper">
+      <canvas id="gaborCanvas"></canvas>
+      <div id="feedbackOverlay"></div>
+    </div>
+    
+    <div id="progressInfo"></div>
+
+    <div id="responseButtons">
+      <div class="resp-btn" id="btnA" ontouchstart="handleResponse('A')" onclick="handleResponse('A')">A</div>
+      <div class="resp-btn" id="btnB" ontouchstart="handleResponse('B')" onclick="handleResponse('B')">B</div>
+    </div>
+  </div>
+
+  <div id="breakScreen" class="hidden">
+    <h2>Block 完成</h2>
+    <p>请稍作休息</p>
+    <p id="breakStatus"></p>
+    <button onclick="resumeExperiment()">继续下一组</button>
+  </div>
+
+  <div id="endScreen" class="hidden">
+    <h2>本 Session 实验结束</h2>
+    <p>感谢您的参与！</p>
+    <p>数据已尝试自动下载。</p>
+    <button onclick="downloadCSV()">再次下载数据</button>
+  </div>
+
+<script>
+// ============================================================================
+// 0. 全局配置与种子随机数 (Seeded RNG)
+// ============================================================================
+// 为了确保所有被试、所有 Session 做的题目完全一样，我们使用固定种子
+let _seed = 123456789; // 固定种子，不要修改
+
+// 线性同余生成器 (LCG) - 保证跨浏览器一致性
+function seededRandom() {
+  _seed = (_seed * 9301 + 49297) % 233280;
+  return _seed / 233280;
+}
+
+// Box-Muller 生成标准正态分布 N(0,1)
+function randn_bm() {
+    let u = 0, v = 0;
+    while(u === 0) u = seededRandom(); 
+    while(v === 0) v = seededRandom();
+    return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+}
+
+// 简单的洗牌函数 (Fisher-Yates) 使用 seededRandom
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(seededRandom() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+// ============================================================================
+// 1. 实验参数配置
+// ============================================================================
+const N_TOTAL_TRIALS = 400;     // 总试次
+const BLOCK_SIZE = 50;          // 每个 Block 的试次
+const N_BLOCKS = N_TOTAL_TRIALS / BLOCK_SIZE; // = 8
+
+// 时间控制 (ms)
+const FIXATION_MS = 500;
+const FEEDBACK_MS = 700;        // 反馈显示时间
+const BLANK_MS = 300;           // 试次间隔
+
+// Gabor 物理参数限制
+// 之前约定的范围：SF [3, 7], Ori [-45, 45]
+const PHY_LIMITS = {
+    sfMin: 3.0, sfMax: 7.0,
+    oriMin: -45, oriMax: 45
+};
+
+// ============================================================================
+// 2. 刺激生成逻辑 (Rotated Elliptical Gaussian)
+// ============================================================================
+
+// 物理映射函数
+function mapToPhysical(rawX, rawY, label) {
+    // 限制范围 (Clipping 0-100)
+    rawX = Math.max(0, Math.min(100, rawX));
+    rawY = Math.max(0, Math.min(100, rawY));
+
+    // 1. SF 范围: 3.0 到 7.0 (跨度 4.0)
+    let sf = PHY_LIMITS.sfMin + (rawX / 100) * (PHY_LIMITS.sfMax - PHY_LIMITS.sfMin); 
+    
+    // 2. Ori 范围: -45 到 +45 (跨度 90)
+    let ori = PHY_LIMITS.oriMin + (rawY / 100) * (PHY_LIMITS.oriMax - PHY_LIMITS.oriMin);
+
+    // 保留3位小数
+    sf = Math.round(sf * 1000) / 1000;
+    ori = Math.round(ori * 1000) / 1000;
+
+    return {
+        sf: sf,
+        ori: ori,
+        label: label,
+        correctKey: (label === 'A' ? 'a' : 'b') // 默认映射，之后可反转
+    };
+}
+
+// 生成主函数
+function generateII400() {
+    const stimuli = [];
+    const nPerCat = N_TOTAL_TRIALS / 2; // 200 A + 200 B
+
+    // 参数设置 (极度椭圆 + 旋转)
+    const centerBase = 50; 
+    const distance = 9;  
+    const varOptimal = 30;      
+    const varOrthogonal = 300;  
+    
+    const muA_base = { x: -distance, y: 0 };
+    const muB_base = { x:  distance, y: 0 };
+    
+    const angle = Math.PI / 4; // 45度
+    const cosT = Math.cos(angle);
+    const sinT = Math.sin(angle);
+
+    for (let cat of ['A', 'B']) {
+        const mu = (cat === 'A') ? muA_base : muB_base;
+        
+        for (let i = 0; i < nPerCat; i++) {
+            // X轴窄(分辨轴), Y轴宽(干扰轴)
+            let x = mu.x + randn_bm() * Math.sqrt(varOptimal); 
+            let y = mu.y + randn_bm() * Math.sqrt(varOrthogonal);
+            
+            // 旋转
+            let rotX = x * cosT - y * sinT;
+            let rotY = x * sinT + y * cosT;
+            
+            // 平移
+            let finalX = rotX + centerBase;
+            let finalY = rotY + centerBase;
+            
+            stimuli.push(mapToPhysical(finalX, finalY, cat));
+        }
+    }
+    
+    return shuffleArray(stimuli);
+}
+
+// 全局题目池 (所有人共用这一套)
+let GLOBAL_STIMULI_POOL = generateII400(); 
+
+// ============================================================================
+// 3. 状态管理与逻辑控制
+// ============================================================================
+let expState = {
+    participant: '',
+    isDelayed: false,
+    orderCode: 1, // 1 or 2
+    serial: 0,
+    sessionIdx: 1, // 1 or 2
+    
+    condition: '', // 'Seated' or 'Walking'
+    
+    currBlock: 1,
+    currTrialInBlock: 0,
+    globalTrialIdx: 0, // 0 to 399
+    
+    data: [], // 存储结果
+    
+    isWaitingResp: false,
+    startTime: 0,
+    
+    currentStim: null
+};
+
+// 解析被试 ID
+function parseParticipantID(idStr) {
+    let raw = idStr.toUpperCase().trim();
+    if (!raw) return null;
+    
+    let isDelayed = false;
+    let cleanId = raw;
+    
+    // B开头检测
+    if (raw.startsWith('B')) {
+        isDelayed = true;
+        cleanId = raw.substring(1);
+    }
+    
+    if (cleanId.length < 2) return null; // 至少要有 Order 和 Serial
+    
+    // 第一位是 Order (1 or 2)
+    let orderDigit = parseInt(cleanId.charAt(0));
+    if (orderDigit !== 1 && orderDigit !== 2) return null;
+    
+    // 剩下的是 Serial
+    let serial = parseInt(cleanId.substring(1));
+    if (isNaN(serial)) return null;
+    
+    return {
+        fullId: raw,
+        isDelayed: isDelayed,
+        orderCode: orderDigit,
+        serial: serial
+    };
+}
+
+// 确定当前 Session 的条件 (Seated/Walking)
+function determineCondition(orderCode, sessionIdx) {
+    // Order 1: 1=Walking, 2=Seated (修正：1开头先Movement)
+    // Order 2: 1=Seated,  2=Walking (修正：2开头先Seated)
+    
+    if (orderCode === 1) {
+        return (sessionIdx == 1) ? 'Walking' : 'Seated';
+    } else {
+        return (sessionIdx == 1) ? 'Seated' : 'Walking';
+    }
+}
+
+function attemptStart() {
+    const pInput = document.getElementById('participantInput').value;
+    const sessInput = document.getElementById('sessionInput').value;
+    const err = document.getElementById('errorMsg');
+    
+    const parsed = parseParticipantID(pInput);
+    
+    if (!parsed) {
+        err.textContent = "编号格式错误！(例: 112, 205, B112)";
+        err.style.display = "block";
+        return;
+    }
+    
+    // 初始化状态
+    expState.participant = parsed.fullId;
+    expState.isDelayed = parsed.isDelayed;
+    expState.orderCode = parsed.orderCode;
+    expState.serial = parsed.serial;
+    expState.sessionIdx = parseInt(sessInput);
+    
+    expState.condition = determineCondition(expState.orderCode, expState.sessionIdx);
+    
+    // 隐藏开始界面，准备进入实验
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('experimentContainer').style.display = 'flex'; // flex for layout
+    document.body.style.cursor = 'none'; // 隐藏鼠标
+    
+    // 初始化 Canvas
+    initGaborCanvas();
+    
+    // 开始第一个 Trial
+    runTrial();
+}
+
+// ============================================================================
+// 4. 绘图与流程
+// ============================================================================
+let ctx = null;
+let canvas = null;
+
+function initGaborCanvas() {
+    canvas = document.getElementById('gaborCanvas');
+    ctx = canvas.getContext('2d');
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+}
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    // 重新绘制背景
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// 绘制 Gabor Patch
+function drawGabor(sf, ori_deg) {
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, width, height);
+    
+    // 参数设定
+    // SF 是 cpd (cycles per degree). 假设 1度 ≈ 30-40 像素 (视距依赖)
+    // 这里为了简化，做一个固定换算：1 cpd = 0.05 像素频率
+    // 3.0 - 7.0 cpd
+    
+    const size = 300; // Gabor 大小 (px)
+    const sigma = 40; // 高斯包络宽度
+    const contrast = 0.8; // 对比度
+    
+    // 角度转弧度 (注意 canvas 坐标系，通常需要反转一下 Y 或者调整角度)
+    // Ori=0 是垂直。Canvas 0 是水平。
+    // 所以 theta = (ori + 90) * PI / 180
+    const theta = (ori_deg) * (Math.PI / 180); 
+    
+    // 频率因子
+    const freq = sf * 0.025; // 调节这个系数来改变条纹看起来的疏密
+    
+    const imgData = ctx.createImageData(size, size);
+    const data = imgData.data;
+    const cx = size / 2;
+    const cy = size / 2;
+    
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            // 相对中心坐标
+            const dx = x - cx;
+            const dy = y - cy;
+            
+            // 旋转坐标
+            // x' = x cos - y sin
+            // y' = x sin + y cos
+            const rx = dx * Math.cos(theta) - dy * Math.sin(theta);
+            // const ry = dx * Math.sin(theta) + dy * Math.cos(theta);
+            
+            // 正弦波
+            const grating = Math.sin(2 * Math.PI * freq * rx);
+            
+            // 高斯包络
+            const envelope = Math.exp(-(dx*dx + dy*dy) / (2 * sigma * sigma));
+            
+            // 最终灰度 (128 为基准)
+            const val = 128 + 127 * contrast * grating * envelope;
+            
+            const idx = (y * size + x) * 4;
+            data[idx] = val;     // R
+            data[idx+1] = val;   // G
+            data[idx+2] = val;   // B
+            data[idx+3] = 255;   // Alpha
+        }
+    }
+    
+    // 绘制到中心
+    ctx.putImageData(imgData, (width - size)/2, (height - size)/2);
+    
+    // 绘制注视点
+    ctx.fillStyle = 'black';
+    ctx.fillRect(width/2 - 3, height/2 - 3, 6, 6);
+}
+
+function clearCanvas() {
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// 运行单个 Trial
+function runTrial() {
+    // 检查是否结束
+    if (expState.globalTrialIdx >= N_TOTAL_TRIALS) {
+        endExperiment();
+        return;
+    }
+    
+    // 检查 Block 休息
+    // 注意：第1个trial是idx 0。第50个是idx 49。做完49后，准备做50(即Block 2第1个)时休息
+    if (expState.globalTrialIdx > 0 && expState.globalTrialIdx % BLOCK_SIZE === 0) {
+        showBreak();
+        return;
+    }
+    
+    // 获取当前刺激
+    const stim = GLOBAL_STIMULI_POOL[expState.globalTrialIdx];
+    expState.currentStim = stim;
+    
+    // 1. 注视点阶段
+    clearCanvas();
+    ctx.fillStyle = 'black';
+    ctx.fillRect(canvas.width/2 - 5, canvas.height/2 - 5, 10, 10); // 注视点
+    
+    setTimeout(() => {
+        // 2. 呈现刺激
+        drawGabor(stim.sf, stim.ori);
+        expState.startTime = performance.now();
+        expState.isWaitingResp = true;
+        
+    }, FIXATION_MS);
+}
+
+// 响应处理
+function handleResponse(respKey) {
+    if (!expState.isWaitingResp) return;
+    
+    const rt = performance.now() - expState.startTime;
+    expState.isWaitingResp = false;
+    
+    const stim = expState.currentStim;
+    const neededKey = stim.correctKey.toUpperCase(); // 'A' or 'B'
+    const isCorr = (respKey === neededKey) ? 1 : 0;
+    
+    // 记录数据
+    saveTrialData(stim, respKey, isCorr, rt);
+    
+    // 反馈 (如果是 Delayed 组，这里可以加逻辑，但为了代码简洁，我们统一给反馈或根据 ID 判断)
+    // 既然是 "Delayed" 组，通常意味着反馈延迟，或者没有反馈？
+    // 为了通用性，这里默认立即反馈，如果 expState.isDelayed 为真，可以改变反馈时机
+    // 假设 B 组 (Delayed) 是反馈延迟显示
+    
+    const feedbackDelay = expState.isDelayed ? 2000 : 0; // 如果是 Delayed 组，延迟 2秒 出反馈
+    
+    // 清屏
+    clearCanvas();
+    
+    setTimeout(() => {
+        showFeedback(isCorr);
+    }, feedbackDelay);
+}
+
+function showFeedback(isCorr) {
+    const overlay = document.getElementById('feedbackOverlay');
+    overlay.textContent = isCorr ? "正确!" : "错误";
+    overlay.style.color = isCorr ? "#0f0" : "#f00"; // 绿/红
+    overlay.style.opacity = 1;
+    
+    setTimeout(() => {
+        overlay.style.opacity = 0;
+        // 下一个 Trial
+        expState.globalTrialIdx++;
+        expState.currTrialInBlock++;
+        
+        setTimeout(runTrial, BLANK_MS);
+        
+    }, FEEDBACK_MS);
+}
+
+// 数据记录
+function saveTrialData(stim, resp, corr, rt) {
+    const row = {
+        participant: expState.participant,
+        group: expState.isDelayed ? 'Delayed' : 'Immediate',
+        orderCode: expState.orderCode,
+        serial: expState.serial,
+        sessionIndex: expState.sessionIdx,
+        movement: expState.condition,
+        task: 'II',
+        blockIndex: Math.floor(expState.globalTrialIdx / BLOCK_SIZE) + 1,
+        trialIndex: expState.globalTrialIdx + 1,
+        sf: stim.sf,
+        ori: stim.ori,
+        label: stim.label,
+        resp: resp,
+        corr: corr,
+        rt: (rt / 1000).toFixed(3), // 秒
+        timestamp: new Date().toISOString()
+    };
+    expState.data.push(row);
+}
+
+// 休息逻辑
+function showBreak() {
+    document.getElementById('experimentContainer').classList.add('hidden');
+    document.getElementById('breakScreen').classList.remove('hidden');
+    
+    const finishedBlocks = expState.globalTrialIdx / BLOCK_SIZE;
+    document.getElementById('breakStatus').textContent = 
+        `已完成 ${finishedBlocks} / ${N_BLOCKS} 组`;
+}
+
+function resumeExperiment() {
+    document.getElementById('breakScreen').classList.add('hidden');
+    document.getElementById('experimentContainer').classList.remove('hidden');
+    runTrial();
+}
+
+// 结束逻辑
+function endExperiment() {
+    document.getElementById('experimentContainer').classList.add('hidden');
+    document.getElementById('endScreen').classList.remove('hidden');
+    document.body.style.cursor = 'default';
+    downloadCSV();
+}
+
+// CSV 下载
+function downloadCSV() {
+    if (expState.data.length === 0) return;
+    
+    const headers = Object.keys(expState.data[0]);
+    let csvContent = headers.join(",") + "\n";
+    
+    expState.data.forEach(row => {
+        let vals = headers.map(h => row[h]);
+        csvContent += vals.join(",") + "\n";
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    
+    const filename = `Gabor_II_${expState.participant}_${expState.condition}_S${expState.sessionIdx}.csv`;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+</script>
+</body>
+</html>
