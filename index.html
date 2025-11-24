@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <title>Gabor Category Learning (II Only)</title>
+  <title>Gabor 分类实验</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -10,215 +10,189 @@
     * {
       box-sizing: border-box;
       font-family: Arial, sans-serif;
-      user-select: none; /* 防止触摸屏长按选中 */
     }
     body, html {
       margin: 0;
       height: 100%;
-      background: #808080; /* 标准中性灰背景 */
+      background: #888;
       color: #111;
-      overflow: hidden; /* 禁止滚动 */
     }
-    
-    /* 界面容器 */
-    #startScreen, #experimentContainer, #breakScreen, #endScreen {
+    #startScreen, #experimentContainer {
       position: fixed;
       inset: 0;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      gap: 20px;
-      z-index: 100;
-      background: #808080;
+      gap: 16px;
     }
-
-    /* 隐藏类 */
-    .hidden {
-      display: none !important;
+    #experimentContainer {
+      display: none;
     }
-
-    /* 输入框样式 */
-    .input-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      text-align: left;
-    }
-    label {
-      font-weight: bold;
-      font-size: 16px;
-    }
-    input, select {
-      padding: 10px;
+    #participantInput {
+      padding: 10px 14px;
       font-size: 18px;
       border-radius: 6px;
       border: 1px solid #333;
       min-width: 260px;
     }
-
-    /* 按钮样式 */
-    button {
-      padding: 14px 28px;
-      font-size: 20px;
-      border-radius: 8px;
+    /* 新增 Session 选择框样式 (复用 input 样式) */
+    #sessionInput {
+      padding: 10px 14px;
+      font-size: 18px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      min-width: 260px;
+      margin-bottom: 10px;
+    }
+    #startButton {
+      padding: 12px 24px;
+      font-size: 18px;
+      border-radius: 6px;
       border: none;
       background: #2c7be5;
       color: #fff;
       cursor: pointer;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     }
-    button:disabled {
-      background: #555;
+    #startButton:disabled {
+      background: #777;
       cursor: not-allowed;
     }
-    button:active {
-      transform: translateY(2px);
-    }
-
-    /* 画布 */
     #canvasWrapper {
       position: relative;
       width: 100vw;
       height: 100vh;
-      cursor: none; /* 实验中隐藏鼠标 */
     }
     canvas {
+      width: 100%;
+      height: 100%;
       display: block;
-      background: #808080;
+      background: #888;
     }
-
-    /* 反馈显示 */
     #feedbackOverlay {
       position: absolute;
       left: 50%;
       top: 50%;
       transform: translate(-50%, -50%);
-      font-size: 60px;
+      font-size: 48px;
       font-weight: bold;
+      text-shadow: 0 0 10px rgba(0,0,0,0.5);
       pointer-events: none;
       opacity: 0;
-      transition: opacity 0.1s;
+      transition: opacity 0.1s ease;
     }
-
-    /* 触摸屏按钮 */
     #responseButtons {
       position: fixed;
-      bottom: 40px;
+      bottom: 32px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 40px;
+      gap: 16px;
       z-index: 10;
     }
-    .resp-btn {
-      width: 100px;
-      height: 100px;
-      border-radius: 50%;
-      font-size: 32px;
-      font-weight: bold;
-      background: rgba(255,255,255,0.2);
-      border: 2px solid #fff;
+    #responseButtons button {
+      padding: 14px 24px;
+      font-size: 18px;
+      border-radius: 999px;
+      border: none;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      min-width: 140px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    #responseButtons button:active {
+      background: rgba(0,0,0,0.8);
+    }
+    /* 休息界面 (复用 startScreen 样式) */
+    #breakOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
       color: #fff;
       display: flex;
-      align-items: center;
+      flex-direction: column;
       justify-content: center;
-      touch-action: manipulation; 
+      align-items: center;
+      z-index: 200;
+      display: none; 
     }
-    .resp-btn:active {
-      background: rgba(255,255,255,0.5);
+    #breakOverlay h2 { margin-bottom: 20px; }
+    #breakOverlay button {
+      margin-top: 20px;
+      background: #eee;
+      color: #333;
     }
-
-    /* 进度条 */
-    #progressInfo {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      color: #eee;
-      font-size: 14px;
-      opacity: 0.6;
+    #endOverlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.9);
+        color: #fff;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 300;
     }
   </style>
 </head>
 <body>
 
   <div id="startScreen">
-    <h1>Gabor 类别学习 (II)</h1>
+    <h2>Gabor 实验</h2>
     
-    <div class="input-group">
-      <label for="participantInput">被试编号 (如: 112, B222)</label>
-      <input type="text" id="participantInput" placeholder="输入编号" autocomplete="off">
-    </div>
-
-    <div class="input-group">
-      <label for="sessionInput">当前是第几次实验 (Session)?</label>
-      <select id="sessionInput">
+    <input id="participantInput" type="text" placeholder="被试编号 (如: 112, B222)" autocomplete="off" />
+    
+    <select id="sessionInput">
         <option value="1">Session 1</option>
         <option value="2">Session 2</option>
-      </select>
-    </div>
+    </select>
 
-    <div style="margin-top:10px; font-size: 14px; color: #333; max-width: 300px;">
-      说明：<br>
-      1开头 (如101) -> 先 Movement 后 Seated<br>
-      2开头 (如201) -> 先 Seated 后 Movement<br>
-      B开头 -> 标记为 Delayed 组
-    </div>
-
-    <button id="startButton" onclick="attemptStart()">开始实验</button>
-    <p id="errorMsg" style="color: red; display: none;"></p>
+    <button id="startButton">开始实验</button>
+    <div id="errorMsg" style="color: #ff4444; display: none; margin-top: 10px;"></div>
   </div>
 
   <div id="experimentContainer">
     <div id="canvasWrapper">
       <canvas id="gaborCanvas"></canvas>
-      <div id="feedbackOverlay"></div>
+      <div id="feedbackOverlay">正确</div>
     </div>
     
-    <div id="progressInfo"></div>
-
     <div id="responseButtons">
-      <div class="resp-btn" id="btnA" ontouchstart="handleResponse('A')" onclick="handleResponse('A')">A</div>
-      <div class="resp-btn" id="btnB" ontouchstart="handleResponse('B')" onclick="handleResponse('B')">B</div>
+      <button id="btnA" ontouchstart="handleInput('a')" onclick="handleInput('a')">A 类 (键盘A)</button>
+      <button id="btnB" ontouchstart="handleInput('b')" onclick="handleInput('b')">B 类 (键盘B)</button>
     </div>
   </div>
 
-  <div id="breakScreen" class="hidden">
-    <h2>Block 完成</h2>
-    <p>请稍作休息</p>
-    <p id="breakStatus"></p>
-    <button onclick="resumeExperiment()">继续下一组</button>
+  <div id="breakOverlay">
+    <h2 id="breakText">休息一下</h2>
+    <p id="blockProgress">已完成 0/8</p>
+    <button onclick="resumeExperiment()">继续</button>
   </div>
 
-  <div id="endScreen" class="hidden">
-    <h2>本 Session 实验结束</h2>
+  <div id="endOverlay">
+    <h2>实验结束</h2>
     <p>感谢您的参与！</p>
-    <p>数据已尝试自动下载。</p>
-    <button onclick="downloadCSV()">再次下载数据</button>
+    <button onclick="downloadData()">下载数据</button>
   </div>
 
 <script>
-// ============================================================================
-// 0. 全局配置与种子随机数 (Seeded RNG)
-// ============================================================================
-// 为了确保所有被试、所有 Session 做的题目完全一样，我们使用固定种子
-let _seed = 123456789; // 固定种子，不要修改
-
-// 线性同余生成器 (LCG) - 保证跨浏览器一致性
+/**
+ * -------------------------------------------------------
+ * 1. SEEDED RNG (固定种子随机数，保证所有人题目一样)
+ * -------------------------------------------------------
+ */
+let _seed = 123456789;
 function seededRandom() {
   _seed = (_seed * 9301 + 49297) % 233280;
   return _seed / 233280;
 }
-
-// Box-Muller 生成标准正态分布 N(0,1)
 function randn_bm() {
     let u = 0, v = 0;
     while(u === 0) u = seededRandom(); 
     while(v === 0) v = seededRandom();
     return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
 }
-
-// 简单的洗牌函数 (Fisher-Yates) 使用 seededRandom
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(seededRandom() * (i + 1));
@@ -227,440 +201,336 @@ function shuffleArray(array) {
     return array;
 }
 
-// ============================================================================
-// 1. 实验参数配置
-// ============================================================================
-const N_TOTAL_TRIALS = 400;     // 总试次
-const BLOCK_SIZE = 50;          // 每个 Block 的试次
-const N_BLOCKS = N_TOTAL_TRIALS / BLOCK_SIZE; // = 8
+/**
+ * -------------------------------------------------------
+ * 2. 实验参数 (II Only, 400 Trials)
+ * -------------------------------------------------------
+ */
+const N_TRIALS = 400;
+const BLOCK_SIZE = 50;
+const N_BLOCKS = N_TRIALS / BLOCK_SIZE;
 
-// 时间控制 (ms)
 const FIXATION_MS = 500;
-const FEEDBACK_MS = 700;        // 反馈显示时间
-const BLANK_MS = 300;           // 试次间隔
+const FEEDBACK_MS = 600; 
 
-// Gabor 物理参数限制
-// 之前约定的范围：SF [3, 7], Ori [-45, 45]
-const PHY_LIMITS = {
-    sfMin: 3.0, sfMax: 7.0,
-    oriMin: -45, oriMax: 45
-};
+// 物理范围：SF 3-7, Ori -45~45
+const PHY = { sfMin: 3.0, sfMax: 7.0, oriMin: -45, oriMax: 45 };
 
-// ============================================================================
-// 2. 刺激生成逻辑 (Rotated Elliptical Gaussian)
-// ============================================================================
-
-// 物理映射函数
+/**
+ * -------------------------------------------------------
+ * 3. 刺激生成 (GLC 椭圆分布)
+ * -------------------------------------------------------
+ */
 function mapToPhysical(rawX, rawY, label) {
-    // 限制范围 (Clipping 0-100)
     rawX = Math.max(0, Math.min(100, rawX));
     rawY = Math.max(0, Math.min(100, rawY));
-
-    // 1. SF 范围: 3.0 到 7.0 (跨度 4.0)
-    let sf = PHY_LIMITS.sfMin + (rawX / 100) * (PHY_LIMITS.sfMax - PHY_LIMITS.sfMin); 
     
-    // 2. Ori 范围: -45 到 +45 (跨度 90)
-    let ori = PHY_LIMITS.oriMin + (rawY / 100) * (PHY_LIMITS.oriMax - PHY_LIMITS.oriMin);
-
-    // 保留3位小数
-    sf = Math.round(sf * 1000) / 1000;
-    ori = Math.round(ori * 1000) / 1000;
-
-    return {
-        sf: sf,
-        ori: ori,
-        label: label,
-        correctKey: (label === 'A' ? 'a' : 'b') // 默认映射，之后可反转
-    };
+    let sf = PHY.sfMin + (rawX/100)*(PHY.sfMax - PHY.sfMin);
+    let ori = PHY.oriMin + (rawY/100)*(PHY.oriMax - PHY.oriMin);
+    
+    // 3位小数
+    sf = Math.round(sf*1000)/1000;
+    ori = Math.round(ori*1000)/1000;
+    
+    return { sf, ori, label, correctKey: (label==='A'?'a':'b') };
 }
 
-// 生成主函数
-function generateII400() {
-    const stimuli = [];
-    const nPerCat = N_TOTAL_TRIALS / 2; // 200 A + 200 B
-
-    // 参数设置 (极度椭圆 + 旋转)
-    const centerBase = 50; 
-    const distance = 9;  
-    const varOptimal = 30;      
-    const varOrthogonal = 300;  
+function generateStimuli() {
+    const list = [];
+    const nPer = N_TRIALS / 2;
     
-    const muA_base = { x: -distance, y: 0 };
-    const muB_base = { x:  distance, y: 0 };
+    // 参数 (Distance=9, Var=30/300, Rotate 45)
+    const dist = 9; 
+    const muA = {x: -dist, y: 0};
+    const muB = {x:  dist, y: 0};
+    const angle = Math.PI/4; // 45 deg
+    const cosT=Math.cos(angle), sinT=Math.sin(angle);
     
-    const angle = Math.PI / 4; // 45度
-    const cosT = Math.cos(angle);
-    const sinT = Math.sin(angle);
-
-    for (let cat of ['A', 'B']) {
-        const mu = (cat === 'A') ? muA_base : muB_base;
-        
-        for (let i = 0; i < nPerCat; i++) {
-            // X轴窄(分辨轴), Y轴宽(干扰轴)
-            let x = mu.x + randn_bm() * Math.sqrt(varOptimal); 
-            let y = mu.y + randn_bm() * Math.sqrt(varOrthogonal);
+    for(let cat of ['A','B']) {
+        const mu = (cat==='A')? muA : muB;
+        for(let i=0; i<nPer; i++){
+            let x = mu.x + randn_bm()*Math.sqrt(30);  // Optimal dim
+            let y = mu.y + randn_bm()*Math.sqrt(300); // Orthogonal dim
             
-            // 旋转
-            let rotX = x * cosT - y * sinT;
-            let rotY = x * sinT + y * cosT;
+            // Rotate & Shift to 50,50
+            let rx = x*cosT - y*sinT + 50;
+            let ry = x*sinT + y*cosT + 50;
             
-            // 平移
-            let finalX = rotX + centerBase;
-            let finalY = rotY + centerBase;
-            
-            stimuli.push(mapToPhysical(finalX, finalY, cat));
+            list.push(mapToPhysical(rx, ry, cat));
         }
     }
-    
-    return shuffleArray(stimuli);
+    return shuffleArray(list);
 }
 
-// 全局题目池 (所有人共用这一套)
-let GLOBAL_STIMULI_POOL = generateII400(); 
+const TRIALS = generateStimuli(); // 生成固定题库
 
-// ============================================================================
-// 3. 状态管理与逻辑控制
-// ============================================================================
+/**
+ * -------------------------------------------------------
+ * 4. 状态管理
+ * -------------------------------------------------------
+ */
 let expState = {
-    participant: '',
-    isDelayed: false,
-    orderCode: 1, // 1 or 2
+    pID: '',
+    group: 'Immediate', // or 'Delayed'
+    order: 1, // 1 or 2
     serial: 0,
-    sessionIdx: 1, // 1 or 2
+    sess: 1,
+    condition: '', // 'Walking'/'Seated'
     
-    condition: '', // 'Seated' or 'Walking'
+    currIdx: 0, // 0 ~ 399
+    data: [],
     
-    currBlock: 1,
-    currTrialInBlock: 0,
-    globalTrialIdx: 0, // 0 to 399
-    
-    data: [], // 存储结果
-    
-    isWaitingResp: false,
-    startTime: 0,
-    
-    currentStim: null
+    waiting: false,
+    t0: 0
 };
 
-// 解析被试 ID
-function parseParticipantID(idStr) {
-    let raw = idStr.toUpperCase().trim();
-    if (!raw) return null;
+// 绑定开始按钮
+document.getElementById('startButton').addEventListener('click', function() {
+    const pidStr = document.getElementById('participantInput').value.trim().toUpperCase();
+    const sessVal = parseInt(document.getElementById('sessionInput').value);
+    const errDiv = document.getElementById('errorMsg');
     
+    if(pidStr.length < 2) {
+        errDiv.textContent = "编号太短！";
+        errDiv.style.display = 'block';
+        return;
+    }
+    
+    // 解析 ID (B开头=Delayed, 1xx=Order1, 2xx=Order2)
     let isDelayed = false;
-    let cleanId = raw;
-    
-    // B开头检测
-    if (raw.startsWith('B')) {
+    let coreID = pidStr;
+    if(pidStr.startsWith('B')) {
         isDelayed = true;
-        cleanId = raw.substring(1);
+        coreID = pidStr.substring(1);
     }
     
-    if (cleanId.length < 2) return null; // 至少要有 Order 和 Serial
+    const orderDigit = parseInt(coreID.charAt(0));
+    const serial = parseInt(coreID.substring(1));
     
-    // 第一位是 Order (1 or 2)
-    let orderDigit = parseInt(cleanId.charAt(0));
-    if (orderDigit !== 1 && orderDigit !== 2) return null;
+    if(isNaN(orderDigit) || (orderDigit!==1 && orderDigit!==2)) {
+        errDiv.textContent = "首位数字必须是 1 或 2！";
+        errDiv.style.display = 'block';
+        return;
+    }
     
-    // 剩下的是 Serial
-    let serial = parseInt(cleanId.substring(1));
-    if (isNaN(serial)) return null;
+    // 设置状态
+    expState.pID = pidStr;
+    expState.group = isDelayed ? 'Delayed' : 'Immediate';
+    expState.order = orderDigit;
+    expState.serial = serial || 0;
+    expState.sess = sessVal;
     
-    return {
-        fullId: raw,
-        isDelayed: isDelayed,
-        orderCode: orderDigit,
-        serial: serial
-    };
-}
-
-// 确定当前 Session 的条件 (Seated/Walking)
-function determineCondition(orderCode, sessionIdx) {
-    // Order 1: 1=Walking, 2=Seated (修正：1开头先Movement)
-    // Order 2: 1=Seated,  2=Walking (修正：2开头先Seated)
-    
-    if (orderCode === 1) {
-        return (sessionIdx == 1) ? 'Walking' : 'Seated';
+    // 判定条件
+    // Order 1: S1=Walking, S2=Seated
+    // Order 2: S1=Seated,  S2=Walking
+    if(expState.order === 1) {
+        expState.condition = (expState.sess===1) ? 'Walking' : 'Seated';
     } else {
-        return (sessionIdx == 1) ? 'Seated' : 'Walking';
+        expState.condition = (expState.sess===1) ? 'Seated' : 'Walking';
     }
-}
+    
+    // UI 切换
+    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('experimentContainer').style.display = 'flex';
+    document.body.style.cursor = 'none';
+    
+    initCanvas();
+    nextTrial();
+});
 
-function attemptStart() {
-    const pInput = document.getElementById('participantInput').value;
-    const sessInput = document.getElementById('sessionInput').value;
-    const err = document.getElementById('errorMsg');
-    
-    const parsed = parseParticipantID(pInput);
-    
-    if (!parsed) {
-        err.textContent = "编号格式错误！(例: 112, 205, B112)";
-        err.style.display = "block";
+/**
+ * -------------------------------------------------------
+ * 5. 流程控制
+ * -------------------------------------------------------
+ */
+function nextTrial() {
+    if(expState.currIdx >= N_TRIALS) {
+        endExp();
         return;
     }
     
-    // 初始化状态
-    expState.participant = parsed.fullId;
-    expState.isDelayed = parsed.isDelayed;
-    expState.orderCode = parsed.orderCode;
-    expState.serial = parsed.serial;
-    expState.sessionIdx = parseInt(sessInput);
-    
-    expState.condition = determineCondition(expState.orderCode, expState.sessionIdx);
-    
-    // 隐藏开始界面，准备进入实验
-    document.getElementById('startScreen').classList.add('hidden');
-    document.getElementById('experimentContainer').style.display = 'flex'; // flex for layout
-    document.body.style.cursor = 'none'; // 隐藏鼠标
-    
-    // 初始化 Canvas
-    initGaborCanvas();
-    
-    // 开始第一个 Trial
-    runTrial();
-}
-
-// ============================================================================
-// 4. 绘图与流程
-// ============================================================================
-let ctx = null;
-let canvas = null;
-
-function initGaborCanvas() {
-    canvas = document.getElementById('gaborCanvas');
-    ctx = canvas.getContext('2d');
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-}
-
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    // 重新绘制背景
-    ctx.fillStyle = '#808080';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
-
-// 绘制 Gabor Patch
-function drawGabor(sf, ori_deg) {
-    const width = canvas.width;
-    const height = canvas.height;
-    ctx.fillStyle = '#808080';
-    ctx.fillRect(0, 0, width, height);
-    
-    // 参数设定
-    // SF 是 cpd (cycles per degree). 假设 1度 ≈ 30-40 像素 (视距依赖)
-    // 这里为了简化，做一个固定换算：1 cpd = 0.05 像素频率
-    // 3.0 - 7.0 cpd
-    
-    const size = 300; // Gabor 大小 (px)
-    const sigma = 40; // 高斯包络宽度
-    const contrast = 0.8; // 对比度
-    
-    // 角度转弧度 (注意 canvas 坐标系，通常需要反转一下 Y 或者调整角度)
-    // Ori=0 是垂直。Canvas 0 是水平。
-    // 所以 theta = (ori + 90) * PI / 180
-    const theta = (ori_deg) * (Math.PI / 180); 
-    
-    // 频率因子
-    const freq = sf * 0.025; // 调节这个系数来改变条纹看起来的疏密
-    
-    const imgData = ctx.createImageData(size, size);
-    const data = imgData.data;
-    const cx = size / 2;
-    const cy = size / 2;
-    
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            // 相对中心坐标
-            const dx = x - cx;
-            const dy = y - cy;
-            
-            // 旋转坐标
-            // x' = x cos - y sin
-            // y' = x sin + y cos
-            const rx = dx * Math.cos(theta) - dy * Math.sin(theta);
-            // const ry = dx * Math.sin(theta) + dy * Math.cos(theta);
-            
-            // 正弦波
-            const grating = Math.sin(2 * Math.PI * freq * rx);
-            
-            // 高斯包络
-            const envelope = Math.exp(-(dx*dx + dy*dy) / (2 * sigma * sigma));
-            
-            // 最终灰度 (128 为基准)
-            const val = 128 + 127 * contrast * grating * envelope;
-            
-            const idx = (y * size + x) * 4;
-            data[idx] = val;     // R
-            data[idx+1] = val;   // G
-            data[idx+2] = val;   // B
-            data[idx+3] = 255;   // Alpha
-        }
-    }
-    
-    // 绘制到中心
-    ctx.putImageData(imgData, (width - size)/2, (height - size)/2);
-    
-    // 绘制注视点
-    ctx.fillStyle = 'black';
-    ctx.fillRect(width/2 - 3, height/2 - 3, 6, 6);
-}
-
-function clearCanvas() {
-    ctx.fillStyle = '#808080';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
-
-// 运行单个 Trial
-function runTrial() {
-    // 检查是否结束
-    if (expState.globalTrialIdx >= N_TOTAL_TRIALS) {
-        endExperiment();
-        return;
-    }
-    
-    // 检查 Block 休息
-    // 注意：第1个trial是idx 0。第50个是idx 49。做完49后，准备做50(即Block 2第1个)时休息
-    if (expState.globalTrialIdx > 0 && expState.globalTrialIdx % BLOCK_SIZE === 0) {
+    // Block 检查
+    if(expState.currIdx > 0 && expState.currIdx % BLOCK_SIZE === 0) {
         showBreak();
         return;
     }
     
-    // 获取当前刺激
-    const stim = GLOBAL_STIMULI_POOL[expState.globalTrialIdx];
-    expState.currentStim = stim;
+    const stim = TRIALS[expState.currIdx];
     
-    // 1. 注视点阶段
-    clearCanvas();
-    ctx.fillStyle = 'black';
-    ctx.fillRect(canvas.width/2 - 5, canvas.height/2 - 5, 10, 10); // 注视点
+    // 1. Fixation
+    drawFixation();
     
     setTimeout(() => {
-        // 2. 呈现刺激
+        // 2. Show Stimulus
         drawGabor(stim.sf, stim.ori);
-        expState.startTime = performance.now();
-        expState.isWaitingResp = true;
-        
+        expState.t0 = performance.now();
+        expState.waiting = true;
     }, FIXATION_MS);
 }
 
-// 响应处理
-function handleResponse(respKey) {
-    if (!expState.isWaitingResp) return;
+function handleInput(key) {
+    if(!expState.waiting) return;
+    expState.waiting = false;
     
-    const rt = performance.now() - expState.startTime;
-    expState.isWaitingResp = false;
-    
-    const stim = expState.currentStim;
-    const neededKey = stim.correctKey.toUpperCase(); // 'A' or 'B'
-    const isCorr = (respKey === neededKey) ? 1 : 0;
+    const rt = performance.now() - expState.t0;
+    const stim = TRIALS[expState.currIdx];
+    const correctKey = stim.correctKey; // 'a' or 'b'
+    const corr = (key.toLowerCase() === correctKey) ? 1 : 0;
     
     // 记录数据
-    saveTrialData(stim, respKey, isCorr, rt);
+    recordData(stim, key, corr, rt);
     
-    // 反馈 (如果是 Delayed 组，这里可以加逻辑，但为了代码简洁，我们统一给反馈或根据 ID 判断)
-    // 既然是 "Delayed" 组，通常意味着反馈延迟，或者没有反馈？
-    // 为了通用性，这里默认立即反馈，如果 expState.isDelayed 为真，可以改变反馈时机
-    // 假设 B 组 (Delayed) 是反馈延迟显示
+    // Delayed 逻辑: 如果是 Delayed 组，等 2000ms 再给反馈
+    const delayMs = (expState.group === 'Delayed') ? 2000 : 0;
     
-    const feedbackDelay = expState.isDelayed ? 2000 : 0; // 如果是 Delayed 组，延迟 2秒 出反馈
-    
-    // 清屏
-    clearCanvas();
+    clearCanvas(); // 清空屏幕 (ISI / Delay Period)
     
     setTimeout(() => {
-        showFeedback(isCorr);
-    }, feedbackDelay);
+        showFeedback(corr);
+    }, delayMs);
 }
 
-function showFeedback(isCorr) {
-    const overlay = document.getElementById('feedbackOverlay');
-    overlay.textContent = isCorr ? "正确!" : "错误";
-    overlay.style.color = isCorr ? "#0f0" : "#f00"; // 绿/红
-    overlay.style.opacity = 1;
+function showFeedback(corr) {
+    const fb = document.getElementById('feedbackOverlay');
+    fb.textContent = corr ? "正确" : "错误";
+    fb.style.color = corr ? "#0f0" : "#f00"; // 绿/红
+    fb.style.opacity = 1;
     
     setTimeout(() => {
-        overlay.style.opacity = 0;
-        // 下一个 Trial
-        expState.globalTrialIdx++;
-        expState.currTrialInBlock++;
-        
-        setTimeout(runTrial, BLANK_MS);
-        
+        fb.style.opacity = 0;
+        expState.currIdx++;
+        nextTrial(); // 这里的间隔包含在 Feedback 时间里了，或者再加 setTimeout
     }, FEEDBACK_MS);
 }
 
-// 数据记录
-function saveTrialData(stim, resp, corr, rt) {
-    const row = {
-        participant: expState.participant,
-        group: expState.isDelayed ? 'Delayed' : 'Immediate',
-        orderCode: expState.orderCode,
-        serial: expState.serial,
-        sessionIndex: expState.sessionIdx,
-        movement: expState.condition,
-        task: 'II',
-        blockIndex: Math.floor(expState.globalTrialIdx / BLOCK_SIZE) + 1,
-        trialIndex: expState.globalTrialIdx + 1,
+function recordData(stim, resp, corr, rt) {
+    expState.data.push({
+        participant: expState.pID,
+        group: expState.group,
+        order: expState.order,
+        session: expState.sess,
+        condition: expState.condition,
+        trial: expState.currIdx + 1,
+        block: Math.floor(expState.currIdx / BLOCK_SIZE) + 1,
         sf: stim.sf,
         ori: stim.ori,
         label: stim.label,
         resp: resp,
         corr: corr,
-        rt: (rt / 1000).toFixed(3), // 秒
-        timestamp: new Date().toISOString()
-    };
-    expState.data.push(row);
+        rt: (rt/1000).toFixed(3)
+    });
 }
 
-// 休息逻辑
-function showBreak() {
-    document.getElementById('experimentContainer').classList.add('hidden');
-    document.getElementById('breakScreen').classList.remove('hidden');
+/**
+ * -------------------------------------------------------
+ * 6. 绘图相关
+ * -------------------------------------------------------
+ */
+let cvs, ctx;
+function initCanvas() {
+    cvs = document.getElementById('gaborCanvas');
+    ctx = cvs.getContext('2d');
+    resize();
+    window.addEventListener('resize', resize);
+}
+function resize() {
+    cvs.width = window.innerWidth;
+    cvs.height = window.innerHeight;
+    clearCanvas();
+}
+function clearCanvas() {
+    ctx.fillStyle = '#888';
+    ctx.fillRect(0,0,cvs.width,cvs.height);
+}
+function drawFixation() {
+    clearCanvas();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(cvs.width/2-4, cvs.height/2-4, 8, 8);
+}
+
+function drawGabor(sf, ori_deg) {
+    clearCanvas();
+    const size = 300; 
+    const sigma = 45;
+    const contrast = 127; 
     
-    const finishedBlocks = expState.globalTrialIdx / BLOCK_SIZE;
-    document.getElementById('breakStatus').textContent = 
-        `已完成 ${finishedBlocks} / ${N_BLOCKS} 组`;
+    // 简单画法：创建 ImageData
+    const img = ctx.createImageData(size, size);
+    const d = img.data;
+    const cx = size/2, cy = size/2;
+    const rad = ori_deg * Math.PI/180;
+    const freq = sf * 0.04; // 缩放系数让条纹可见
+    
+    for(let y=0; y<size; y++) {
+        for(let x=0; x<size; x++) {
+            const dx = x-cx;
+            const dy = y-cy;
+            
+            // 旋转
+            const rx = dx*Math.cos(rad) - dy*Math.sin(rad);
+            
+            // Gabor 公式
+            const grating = Math.sin(2*Math.PI*freq*rx);
+            const env = Math.exp(-(dx*dx + dy*dy)/(2*sigma*sigma));
+            const val = 128 + contrast * grating * env;
+            
+            const i = (y*size+x)*4;
+            d[i] = val; d[i+1] = val; d[i+2] = val; d[i+3] = 255;
+        }
+    }
+    ctx.putImageData(img, (cvs.width-size)/2, (cvs.height-size)/2);
+}
+
+/**
+ * -------------------------------------------------------
+ * 7. 休息与结束
+ * -------------------------------------------------------
+ */
+function showBreak() {
+    document.getElementById('experimentContainer').style.display = 'none';
+    const bDiv = document.getElementById('breakOverlay');
+    bDiv.style.display = 'flex';
+    
+    const bNum = expState.currIdx / BLOCK_SIZE;
+    document.getElementById('blockProgress').textContent = `已完成 ${bNum} / ${N_BLOCKS} 组`;
 }
 
 function resumeExperiment() {
-    document.getElementById('breakScreen').classList.add('hidden');
-    document.getElementById('experimentContainer').classList.remove('hidden');
-    runTrial();
+    document.getElementById('breakOverlay').style.display = 'none';
+    document.getElementById('experimentContainer').style.display = 'flex';
+    nextTrial();
 }
 
-// 结束逻辑
-function endExperiment() {
-    document.getElementById('experimentContainer').classList.add('hidden');
-    document.getElementById('endScreen').classList.remove('hidden');
+function endExp() {
+    document.getElementById('experimentContainer').style.display = 'none';
+    document.getElementById('endOverlay').style.display = 'flex';
     document.body.style.cursor = 'default';
-    downloadCSV();
+    downloadData();
 }
 
-// CSV 下载
-function downloadCSV() {
-    if (expState.data.length === 0) return;
-    
+function downloadData() {
+    if(!expState.data.length) return;
     const headers = Object.keys(expState.data[0]);
-    let csvContent = headers.join(",") + "\n";
-    
+    let csv = headers.join(',') + '\n';
     expState.data.forEach(row => {
-        let vals = headers.map(h => row[h]);
-        csvContent += vals.join(",") + "\n";
+        csv += headers.map(h => row[h]).join(',') + '\n';
     });
     
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    
-    const filename = `Gabor_II_${expState.participant}_${expState.condition}_S${expState.sessionIdx}.csv`;
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `GaborII_${expState.pID}_${expState.condition}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
+
+// 键盘监听
+window.addEventListener('keydown', function(e) {
+    if(e.key.toLowerCase() === 'a') handleInput('a');
+    if(e.key.toLowerCase() === 'b') handleInput('b');
+});
 
 </script>
 </body>
