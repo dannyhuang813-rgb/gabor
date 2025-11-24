@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gabor Information-Integration Task</title>
+<style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+        margin: 0;
+        font-family: "Helvetica Neue", Arial, sans-serif;
+        background: #808080;
+        color: #111;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    #app {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        background: #808080;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        padding: clamp(12px, 2vw, 24px);
+    }
+    section {
+        width: 100%;
+        height: 100%;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(12px, 2.6vw, 24px);
+        text-align: center;
+    }
+    section.active { display: flex; }
+    h1 { margin: 0; font-size: clamp(24px, 4vw, 36px); }
+    p { margin: 0; font-size: clamp(16px, 3vw, 20px); line-height: 1.6; }
+    form { width: min(420px, 90%); display: flex; flex-direction: column; gap: 12px; }
+    label { text-align: left; font-weight: 600; }
+    input, select {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid #bbb;
+        font-size: 16px;
+    }
+    button {
+        border: none;
+        border-radius: 12px;
+        padding: 12px 18px;
+        font-size: 17px;
+        cursor: pointer;
+        background: #2f7dff;
+        color: #fff;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 12px 30px rgba(47,125,255,0.3); background: #1f63e0; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; transform: none; }
+    #canvasHolder {
+        position: relative;
+        width: min(82vw, 82vh);
+        height: min(82vw, 82vh);
+        max-width: 820px;
+        max-height: 820px;
+        background: #777;
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        box-shadow: 0 10px 36px rgba(0,0,0,0.25);
+    }
+    canvas { width: 94%; height: 94%; display: block; }
+    #feedbackOverlay, #breakOverlay {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(26px, 6vw, 52px);
+        font-weight: 700;
+        color: #fff;
+        text-align: center;
+        padding: 20px;
+    }
+    #feedbackOverlay.show { display: flex; }
+    #feedbackOverlay.correct { color: #2ea24b; }
+    #feedbackOverlay.wrong { color: #d63b3b; }
+    #breakOverlay { background: rgba(0,0,0,0.45); flex-direction: column; gap: 16px; }
+    #touchButtons {
+        position: absolute;
+        bottom: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 12px;
+        z-index: 3;
+    }
+    .touchBtn {
+        min-width: 90px;
+        padding: 12px 22px;
+        border-radius: 999px;
+        background: #444;
+        color: #fff;
+        font-size: 18px;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+    }
+    #finishScreen .top-right {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+    }
+    @media (max-width: 640px) {
+        #app { padding: 10px; }
+        #canvasHolder { width: 92vw; height: 92vw; max-width: none; max-height: none; border-radius: 12px; }
+        canvas { width: 94%; height: 94%; }
+        #touchButtons { bottom: 10px; gap: 10px; }
+        .touchBtn { min-width: 72px; }
+    }
+</style>
+</head>
+<body>
+<div id="app">
+    <section id="startScreen" class="active">
+        <h1>Gabor Information-Integration Task</h1>
+        <p>请输入编号并选择 Session，点击开始即可。</p>
+        <form id="startForm">
+            <div>
+                <label for="participantInput">被试编号</label>
+                <input id="participantInput" type="text" required autocomplete="off" />
+            </div>
+            <div>
+                <label for="sessionSelect">Session</label>
+                <select id="sessionSelect" required>
+                    <option value="1">Session 1</option>
+                    <option value="2">Session 2</option>
+                </select>
+            </div>
+            <button type="submit" id="startBtn">开始实验</button>
+        </form>
+    </section>
+
+    <section id="experimentScreen">
+        <div id="canvasHolder">
+            <canvas id="stimulusCanvas"></canvas>
+            <div id="feedbackOverlay"></div>
+            <div id="breakOverlay">
+                <div>休息一下</div>
+                <button id="continueBtn">继续</button>
+            </div>
+            <div id="touchButtons">
+                <button class="touchBtn" data-choice="a">A</button>
+                <button class="touchBtn" data-choice="b">B</button>
+            </div>
+        </div>
+    </section>
+
+    <section id="finishScreen">
+        <div class="top-right"><button id="downloadBtn">重新下载</button></div>
+        <h1>感谢参与！</h1>
+        <p>数据已自动保存。</p>
+    </section>
+</div>
+<script>
+// 配置
+const CFG = Object.freeze({
+    TOTAL_TRIALS: 400,
+    BREAK_EVERY: 50,
+    FIX_MS: 500,
+    FB_MS: 700,
+    DELAY_MS: 2000,
+    BACKGROUND: '#6f6f6f',
+    CANVAS_SCALE: 0.88,
+    STIM_LIMIT_MS: 4000,
+    SEED: 123456789
+});
+
+const STATE = {
+    participant: '',
+    session: '1',
+    group: 'Immediate',
+    order: '',
+    condition: '',
+    running: false,
+    accepting: false,
+    trials: [],
+    data: [],
+    resolver: null,
+    timer: null,
+    lastFilename: '',
+    breakResolver: null
+};
+
+const startScreen = document.getElementById('startScreen');
+const experimentScreen = document.getElementById('experimentScreen');
+const finishScreen = document.getElementById('finishScreen');
+const participantInput = document.getElementById('participantInput');
+const sessionSelect = document.getElementById('sessionSelect');
+const startForm = document.getElementById('startForm');
+const stimulusCanvas = document.getElementById('stimulusCanvas');
+const canvasHolder = document.getElementById('canvasHolder');
+const feedbackOverlay = document.getElementById('feedbackOverlay');
+const breakOverlay = document.getElementById('breakOverlay');
+const continueBtn = document.getElementById('continueBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const touchButtons = document.querySelectorAll('.touchBtn');
+
+const ctx = stimulusCanvas.getContext('2d');
+let canvasInfo = { cx: 0, cy: 0, diameter: 0, cssDiameter: 0, dpr: 1 };
+
+function setActive(section) {
+    [startScreen, experimentScreen, finishScreen].forEach(sec => sec.classList.remove('active'));
+    section.classList.add('active');
+}
+
+function updateCanvasSize() {
+    const dpr = window.devicePixelRatio || 1;
+    const side = Math.min(canvasHolder.clientWidth, canvasHolder.clientHeight) * CFG.CANVAS_SCALE;
+    const pixel = Math.max(1, Math.round(side * dpr));
+    stimulusCanvas.width = pixel;
+    stimulusCanvas.height = pixel;
+    stimulusCanvas.style.width = `${Math.round(side)}px`;
+    stimulusCanvas.style.height = `${Math.round(side)}px`;
+    ctx.setTransform(1,0,0,1,0,0);
+    canvasInfo = { cx: pixel/2, cy: pixel/2, diameter: pixel, cssDiameter: side, dpr };
+    clearCanvas();
+}
+
+function clearCanvas() {
+    ctx.fillStyle = CFG.BACKGROUND;
+    ctx.fillRect(0,0,canvasInfo.diameter, canvasInfo.diameter);
+}
+
+// RNG
+function mulberry32(a){
+    return function(){
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+const rng = mulberry32(CFG.SEED);
+
+function boxMuller(r){
+    let u = 0, v = 0;
+    while(u === 0) u = r();
+    while(v === 0) v = r();
+    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+function sample2D(mean, rot, sd) {
+    const z1 = boxMuller(rng);
+    const z2 = boxMuller(rng);
+    const x = sd[0] * z1;
+    const y = sd[1] * z2;
+    return {
+        x: mean.x + rot[0][0]*x + rot[0][1]*y,
+        y: mean.y + rot[1][0]*x + rot[1][1]*y
+    };
+}
+
+function mapToStim(v){
+    const x = Math.min(100, Math.max(0, v.x));
+    const y = Math.min(100, Math.max(0, v.y));
+    // sf interpreted as number of black/white pairs → total visible stripes = sf*2 (sf=2 → 4 stripes)
+    const sfPairs = Math.max(2, Math.min(4, Math.round(2 + (x/100)*2)));
+    const ori = -45 + (y/100)*90; // -45..45 deg
+    return { sf: sfPairs, ori: Number(ori.toFixed(3)) };
+}
+
+function generateTrials(){
+    const trials = [];
+    const d = 9/2;
+    const meanA = { x: 50 - d, y: 50 - d };
+    const meanB = { x: 50 + d, y: 50 + d };
+    const theta = Math.PI/4;
+    const c = Math.cos(theta), s = Math.sin(theta);
+    const rot = [[c, -s],[s,c]];
+    const sd = [Math.sqrt(300), Math.sqrt(30)];
+    for(let i=0;i<CFG.TOTAL_TRIALS/2;i++){
+        const a = sample2D(meanA, rot, sd);
+        const b = sample2D(meanB, rot, sd);
+        trials.push({cat:'A', raw:a});
+        trials.push({cat:'B', raw:b});
+    }
+    // deterministic shuffle
+    for(let i=trials.length-1;i>0;i--){
+        const j = Math.floor(rng()*(i+1));
+        [trials[i],trials[j]]=[trials[j],trials[i]];
+    }
+    return trials.map((t, idx)=>{
+        const stim = mapToStim(t.raw);
+        return {
+            blockIndex: Math.floor(idx/CFG.BREAK_EVERY)+1,
+            trialIndex: idx+1,
+            label: t.cat,
+            sf: stim.sf,
+            ori: stim.ori
+        };
+    });
+}
+
+function drawFixation(){
+    clearCanvas();
+    const size = Math.max(2, Math.round(canvasInfo.diameter*0.04));
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = Math.max(2, size*0.18);
+    ctx.beginPath();
+    ctx.moveTo(canvasInfo.cx - size, canvasInfo.cy);
+    ctx.lineTo(canvasInfo.cx + size, canvasInfo.cy);
+    ctx.moveTo(canvasInfo.cx, canvasInfo.cy - size);
+    ctx.lineTo(canvasInfo.cx, canvasInfo.cy + size);
+    ctx.stroke();
+}
+
+function drawGabor(sf, oriDeg){
+    const size = canvasInfo.diameter;
+    const image = ctx.createImageData(size, size);
+    const data = image.data;
+    // sf denotes number of black/white pairs; total visible stripes = sf*2
+    const cycles = sf;
+    const freq = cycles / size;
+    const theta = oriDeg * Math.PI/180;
+    const cosT = Math.cos(theta), sinT = Math.sin(theta);
+    const sigma = size * 0.18;
+    const cx = size/2, cy = size/2;
+    const r2 = (size/2 - 1)**2;
+    const bg = 111; // match neutral gray outside the circle
+    for(let y=0;y<size;y++){
+        for(let x=0;x<size;x++){
+            const dx = x - cx;
+            const dy = y - cy;
+            const dist2 = dx*dx + dy*dy;
+            if(dist2 > r2){
+                const idx = (y*size + x)*4;
+                data[idx] = data[idx+1] = data[idx+2] = bg;
+                data[idx+3] = 255;
+                continue;
+            }
+            const xr = dx * cosT + dy * sinT;
+            const yr = -dx * sinT + dy * cosT;
+            const g = Math.exp(-(xr*xr + yr*yr)/(2*sigma*sigma));
+            const phase = 2 * Math.PI * freq * xr;
+            const val = g * Math.cos(phase);
+            const gray = Math.round(128 + 110 * val);
+            const idx = (y*size + x)*4;
+            data[idx] = data[idx+1] = data[idx+2] = gray;
+            data[idx+3] = 255;
+        }
+    }
+    ctx.putImageData(image,0,0);
+    ctx.lineWidth = Math.max(2, size*0.01);
+    ctx.strokeStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(cx, cy, size/2 - ctx.lineWidth, 0, Math.PI*2);
+    ctx.stroke();
+}
+
+function showFeedback(correct){
+    feedbackOverlay.textContent = correct ? 'Correct' : 'Wrong';
+    feedbackOverlay.classList.remove('show','correct','wrong');
+    feedbackOverlay.classList.add('show', correct ? 'correct' : 'wrong');
+}
+function hideFeedback(){
+    feedbackOverlay.classList.remove('show','correct','wrong');
+}
+
+function wait(ms){ return new Promise(res=>setTimeout(res, ms)); }
+
+function handleResponse(key){
+    if(!STATE.accepting || !STATE.resolver) return;
+    STATE.accepting=false;
+    if(STATE.timer){ clearTimeout(STATE.timer); STATE.timer=null; }
+    STATE.resolver({key, timeout:false});
+    STATE.resolver=null;
+}
+
+function waitForResponse(limitMs){
+    return new Promise(resolve=>{
+        STATE.accepting=true;
+        STATE.resolver=resolve;
+        STATE.timer=setTimeout(()=>{
+            STATE.accepting=false;
+            STATE.resolver=null;
+            resolve({key:'NA', timeout:true});
+        }, limitMs);
+    });
+}
+
+function handleKeyDown(e){
+    if(!STATE.running) return;
+    const k = e.key.toLowerCase();
+    if(k==='a' || k==='arrowleft'){ e.preventDefault(); handleResponse('a'); }
+    if(k==='b' || k==='arrowright'){ e.preventDefault(); handleResponse('b'); }
+    if(e.key==='Escape'){ e.preventDefault(); finishExperiment(); }
+}
+
+function handlePointer(e){
+    if(!STATE.running) return;
+    const target = e.target.closest('[data-choice]');
+    if(target){
+        handleResponse(target.dataset.choice);
+        return;
+    }
+    const isLeft = e.clientX < window.innerWidth/2;
+    handleResponse(isLeft ? 'a' : 'b');
+}
+
+document.addEventListener('keydown', handleKeyDown);
+document.addEventListener('pointerdown', handlePointer);
+window.addEventListener('resize', updateCanvasSize);
+window.addEventListener('beforeunload', ()=>{
+    if(!STATE.data.length) return;
+    const ts = new Date().toISOString().replace(/[:.]/g,'-');
+    const name = `gabor_${STATE.participant||'session'}_${ts}.csv`;
+    downloadCSV(name, STATE.data);
+});
+
+touchButtons.forEach(btn=>btn.addEventListener('click', e=>{
+    e.preventDefault();
+    handleResponse(btn.dataset.choice);
+}));
+
+continueBtn.addEventListener('click', ()=>{
+    if(!STATE.running) return;
+    breakOverlay.style.display='none';
+    if(STATE.breakResolver){ STATE.breakResolver(); STATE.breakResolver=null; }
+});
+
+function determineOrder(participant){
+    const firstDigit = (participant.match(/\d/)||[])[0];
+    if(firstDigit==='1') return '1';
+    if(firstDigit==='2') return '2';
+    return '';
+}
+
+function deriveCondition(order, session){
+    if(order==='1') return session==='1' ? 'Walking' : 'Seated';
+    if(order==='2') return session==='1' ? 'Seated' : 'Walking';
+    return '';
+}
+
+startForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const pid = participantInput.value.trim();
+    if(!pid) return;
+    STATE.participant = pid;
+    STATE.session = sessionSelect.value;
+    STATE.group = /^b/i.test(pid) ? 'Delayed' : 'Immediate';
+    STATE.order = determineOrder(pid);
+    STATE.condition = deriveCondition(STATE.order, STATE.session);
+    STATE.trials = generateTrials();
+    STATE.data = [];
+    STATE.lastFilename='';
+    STATE.running=true;
+    setActive(experimentScreen);
+    updateCanvasSize();
+    runLoop();
+});
+
+async function runLoop(){
+    for(const trial of STATE.trials){
+        if(!STATE.running) break;
+        await runTrial(trial);
+        if(trial.trialIndex % CFG.BREAK_EVERY === 0 && trial.trialIndex !== STATE.trials.length){
+            await runBreak();
+        }
+    }
+    finishExperiment();
+}
+
+async function runBreak(){
+    breakOverlay.style.display='flex';
+    await new Promise(res=>{ STATE.breakResolver=res; });
+}
+
+async function runTrial(trial){
+    hideFeedback();
+    drawFixation();
+    const trialStart = new Date().toISOString();
+    await wait(CFG.FIX_MS);
+    clearCanvas();
+    drawGabor(trial.sf, trial.ori);
+    const stimStart = performance.now();
+    const resp = await waitForResponse(CFG.STIM_LIMIT_MS);
+    const rt = resp.timeout ? '' : ((performance.now()-stimStart)/1000).toFixed(3);
+    clearCanvas();
+    if(STATE.group==='Delayed'){ await wait(CFG.DELAY_MS); }
+    const correct = !resp.timeout && ((trial.label==='A' && resp.key==='a') || (trial.label==='B' && resp.key==='b'));
+    showFeedback(correct);
+    await wait(CFG.FB_MS);
+    hideFeedback();
+    clearCanvas();
+    const row = {
+        participant: STATE.participant,
+        group: STATE.group,
+        order: STATE.order,
+        session: STATE.session,
+        condition: STATE.condition,
+        trial_index: trial.trialIndex,
+        block_index: trial.blockIndex,
+        sf: trial.sf,
+        ori: trial.ori,
+        category_label: trial.label,
+        response: resp.key,
+        accuracy: resp.timeout ? 0 : (correct ? 1 : 0),
+        rt: rt
+    };
+    STATE.data.push(row);
+}
+
+function buildCSV(rows){
+    const headers = ['participant','group','order','session','condition','trial_index','block_index','sf','ori','category_label','response','accuracy','rt'];
+    const lines=[headers.join(',')];
+    for(const r of rows){
+        lines.push(headers.map(h=>r[h] ?? '').join(','));
+    }
+    return lines.join('\n');
+}
+
+function downloadCSV(filename, rows){
+    if(!rows.length) return;
+    const csv = buildCSV(rows);
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+
+function finishExperiment(){
+    if(!STATE.running) return;
+    STATE.running=false;
+    STATE.accepting=false;
+    if(STATE.timer){ clearTimeout(STATE.timer); STATE.timer=null; }
+    const ts = new Date().toISOString().replace(/[:.]/g,'-');
+    const name = `gabor_${STATE.participant||'session'}_${ts}.csv`;
+    STATE.lastFilename = name;
+    downloadCSV(name, STATE.data);
+    setActive(finishScreen);
+}
+
+downloadBtn.addEventListener('click', ()=>{
+    const name = STATE.lastFilename || `gabor_${STATE.participant||'session'}_${Date.now()}.csv`;
+    downloadCSV(name, STATE.data);
+});
+
+updateCanvasSize();
+</script>
+</body>
+</html>
