@@ -20,16 +20,14 @@
     }
     #app {
         position: relative;
-        width: min(960px, 96vw);
-        height: min(720px, 96vh);
-        background: rgba(255,255,255,0.96);
-        border-radius: 18px;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+        width: 100vw;
+        height: 100vh;
+        background: #808080;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        padding: clamp(16px, 3vw, 32px);
+        padding: clamp(12px, 2vw, 24px);
     }
     section {
         width: 100%;
@@ -38,7 +36,7 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: clamp(16px, 3vw, 28px);
+        gap: clamp(12px, 2.6vw, 24px);
         text-align: center;
     }
     section.active { display: flex; }
@@ -69,16 +67,17 @@
         position: relative;
         width: min(82vw, 82vh);
         height: min(82vw, 82vh);
-        max-width: 600px;
-        max-height: 600px;
-        background: #cfcfcf;
+        max-width: 820px;
+        max-height: 820px;
+        background: #777;
         border-radius: 18px;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        box-shadow: 0 10px 36px rgba(0,0,0,0.25);
     }
-    canvas { width: 90%; height: 90%; display: block; }
+    canvas { width: 94%; height: 94%; display: block; }
     #feedbackOverlay, #breakOverlay {
         position: absolute;
         inset: 0;
@@ -102,6 +101,7 @@
         transform: translateX(-50%);
         display: flex;
         gap: 12px;
+        z-index: 3;
     }
     .touchBtn {
         min-width: 90px;
@@ -120,9 +120,9 @@
         right: 12px;
     }
     @media (max-width: 640px) {
-        #app { width: 100vw; height: 100vh; border-radius: 0; box-shadow: none; padding: 12px; }
-        #canvasHolder { width: 88vw; height: 88vw; max-width: none; max-height: none; border-radius: 12px; }
-        canvas { width: 92%; height: 92%; }
+        #app { padding: 10px; }
+        #canvasHolder { width: 92vw; height: 92vw; max-width: none; max-height: none; border-radius: 12px; }
+        canvas { width: 94%; height: 94%; }
         #touchButtons { bottom: 10px; gap: 10px; }
         .touchBtn { min-width: 72px; }
     }
@@ -178,8 +178,8 @@ const CFG = Object.freeze({
     FIX_MS: 500,
     FB_MS: 700,
     DELAY_MS: 2000,
-    BACKGROUND: '#cfcfcf',
-    CANVAS_SCALE: 0.8,
+    BACKGROUND: '#6f6f6f',
+    CANVAS_SCALE: 0.88,
     STIM_LIMIT_MS: 4000,
     SEED: 123456789
 });
@@ -272,9 +272,10 @@ function sample2D(mean, rot, sd) {
 function mapToStim(v){
     const x = Math.min(100, Math.max(0, v.x));
     const y = Math.min(100, Math.max(0, v.y));
-    const sf = 3 + (x/100)*4; // 3..7 cpd
+    // sf interpreted as number of black/white pairs → total visible stripes = sf*2 (sf=2 → 4 stripes)
+    const sfPairs = Math.max(2, Math.min(4, Math.round(2 + (x/100)*2)));
     const ori = -45 + (y/100)*90; // -45..45 deg
-    return { sf: Number(sf.toFixed(3)), ori: Number(ori.toFixed(3)) };
+    return { sf: sfPairs, ori: Number(ori.toFixed(3)) };
 }
 
 function generateTrials(){
@@ -311,25 +312,41 @@ function generateTrials(){
 
 function drawFixation(){
     clearCanvas();
-    const size = Math.max(2, Math.round(canvasInfo.diameter*0.02));
-    ctx.fillStyle = '#000';
-    ctx.fillRect(canvasInfo.cx - size/2, canvasInfo.cy - size/2, size, size);
+    const size = Math.max(2, Math.round(canvasInfo.diameter*0.04));
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = Math.max(2, size*0.18);
+    ctx.beginPath();
+    ctx.moveTo(canvasInfo.cx - size, canvasInfo.cy);
+    ctx.lineTo(canvasInfo.cx + size, canvasInfo.cy);
+    ctx.moveTo(canvasInfo.cx, canvasInfo.cy - size);
+    ctx.lineTo(canvasInfo.cx, canvasInfo.cy + size);
+    ctx.stroke();
 }
 
 function drawGabor(sf, oriDeg){
     const size = canvasInfo.diameter;
     const image = ctx.createImageData(size, size);
     const data = image.data;
-    const cycles = sf/2; // 每直径条纹数换算为周期数
+    // sf denotes number of black/white pairs; total visible stripes = sf*2
+    const cycles = sf;
     const freq = cycles / size;
     const theta = oriDeg * Math.PI/180;
     const cosT = Math.cos(theta), sinT = Math.sin(theta);
     const sigma = size * 0.18;
     const cx = size/2, cy = size/2;
+    const r2 = (size/2 - 1)**2;
+    const bg = 111; // match neutral gray outside the circle
     for(let y=0;y<size;y++){
         for(let x=0;x<size;x++){
             const dx = x - cx;
             const dy = y - cy;
+            const dist2 = dx*dx + dy*dy;
+            if(dist2 > r2){
+                const idx = (y*size + x)*4;
+                data[idx] = data[idx+1] = data[idx+2] = bg;
+                data[idx+3] = 255;
+                continue;
+            }
             const xr = dx * cosT + dy * sinT;
             const yr = -dx * sinT + dy * cosT;
             const g = Math.exp(-(xr*xr + yr*yr)/(2*sigma*sigma));
