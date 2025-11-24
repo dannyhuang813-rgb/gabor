@@ -1,621 +1,544 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <title>Gabor Category Learning (II Only)</title>
-  <style>
-    :root {
-      color-scheme: light dark;
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gabor Information-Integration Task</title>
+<style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+        margin: 0;
+        font-family: "Helvetica Neue", Arial, sans-serif;
+        background: #808080;
+        color: #111;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-    * {
-      box-sizing: border-box;
-      font-family: "Arial", sans-serif;
-      user-select: none; /* 禁止选中文字 */
+    #app {
+        position: relative;
+        width: min(960px, 96vw);
+        height: min(720px, 96vh);
+        background: rgba(255,255,255,0.96);
+        border-radius: 18px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        padding: clamp(16px, 3vw, 32px);
     }
-    body, html {
-      margin: 0;
-      height: 100%;
-      background: #808080; /* 标准中性灰 */
-      color: #111;
-      overflow: hidden;
+    section {
+        width: 100%;
+        height: 100%;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(16px, 3vw, 28px);
+        text-align: center;
     }
-
-    /* ---------------------- */
-    /* 1. 开始界面 (Start Screen) */
-    /* ---------------------- */
-    #startScreen {
-      position: fixed;
-      inset: 0;
-      background: #e0e0e0; /* 浅灰背景，区别于实验背景 */
-      z-index: 9999; /* 保证在最上层 */
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-    }
-    
-    #startScreen h1 {
-      margin-bottom: 20px;
-      color: #333;
-    }
-
-    .input-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      width: 300px;
-    }
-    
-    label {
-      font-weight: bold;
-      color: #444;
-    }
-
+    section.active { display: flex; }
+    h1 { margin: 0; font-size: clamp(24px, 4vw, 36px); }
+    p { margin: 0; font-size: clamp(16px, 3vw, 20px); line-height: 1.6; }
+    form { width: min(420px, 90%); display: flex; flex-direction: column; gap: 12px; }
+    label { text-align: left; font-weight: 600; }
     input, select {
-      padding: 12px;
-      font-size: 16px;
-      border: 2px solid #ccc;
-      border-radius: 8px;
-      outline: none;
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid #bbb;
+        font-size: 16px;
     }
-    input:focus, select:focus {
-      border-color: #2c7be5;
+    button {
+        border: none;
+        border-radius: 12px;
+        padding: 12px 18px;
+        font-size: 17px;
+        cursor: pointer;
+        background: #2f7dff;
+        color: #fff;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
     }
-
-    #startButton {
-      margin-top: 20px;
-      padding: 14px 40px;
-      font-size: 20px;
-      border: none;
-      border-radius: 8px;
-      background: #2c7be5;
-      color: white;
-      cursor: pointer;
-      box-shadow: 0 4px 10px rgba(44, 123, 229, 0.3);
-      transition: transform 0.1s;
+    button:hover { transform: translateY(-1px); box-shadow: 0 12px 30px rgba(47,125,255,0.3); background: #1f63e0; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; transform: none; }
+    #canvasHolder {
+        position: relative;
+        width: min(82vw, 82vh);
+        height: min(82vw, 82vh);
+        max-width: 600px;
+        max-height: 600px;
+        background: #cfcfcf;
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
     }
-    #startButton:active {
-      transform: scale(0.98);
+    canvas { width: 90%; height: 90%; display: block; }
+    #feedbackOverlay, #breakOverlay {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(26px, 6vw, 52px);
+        font-weight: 700;
+        color: #fff;
+        text-align: center;
+        padding: 20px;
     }
-    
-    #errorMsg {
-      color: #d93025;
-      font-weight: bold;
-      min-height: 24px; /* 占位 */
+    #feedbackOverlay.show { display: flex; }
+    #feedbackOverlay.correct { color: #2ea24b; }
+    #feedbackOverlay.wrong { color: #d63b3b; }
+    #breakOverlay { background: rgba(0,0,0,0.45); flex-direction: column; gap: 16px; }
+    #touchButtons {
+        position: absolute;
+        bottom: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 12px;
     }
-
-    /* ---------------------- */
-    /* 2. 实验界面 (Experiment) */
-    /* ---------------------- */
-    #experimentContainer {
-      position: fixed;
-      inset: 0;
-      display: none; /* 默认隐藏 */
-      flex-direction: column;
-      z-index: 1;
-      cursor: none; /* 隐藏鼠标 */
+    .touchBtn {
+        min-width: 90px;
+        padding: 12px 22px;
+        border-radius: 999px;
+        background: #444;
+        color: #fff;
+        font-size: 18px;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.25);
     }
-
-    #canvasWrapper {
-      position: relative;
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    #finishScreen .top-right {
+        position: absolute;
+        top: 12px;
+        right: 12px;
     }
-
-    canvas {
-      display: block;
-      background: #808080; /* 必须是灰色背景 */
+    @media (max-width: 640px) {
+        #app { width: 100vw; height: 100vh; border-radius: 0; box-shadow: none; padding: 12px; }
+        #canvasHolder { width: 88vw; height: 88vw; max-width: none; max-height: none; border-radius: 12px; }
+        canvas { width: 92%; height: 92%; }
+        #touchButtons { bottom: 10px; gap: 10px; }
+        .touchBtn { min-width: 72px; }
     }
-
-    /* 反馈文字 */
-    #feedbackOverlay {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 80px;
-      font-weight: bold;
-      text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.1s;
-    }
-
-    /* 响应按钮 (胶囊状) */
-    #responseButtons {
-      position: absolute;
-      bottom: 50px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 40px;
-      width: 100%;
-      justify-content: center;
-      pointer-events: auto;
-    }
-
-    .resp-btn {
-      background: rgba(255, 255, 255, 0.25);
-      border: 2px solid rgba(255, 255, 255, 0.6);
-      color: white;
-      font-size: 28px;
-      font-weight: bold;
-      padding: 20px 60px;
-      border-radius: 50px; /* 胶囊形状 */
-      cursor: pointer;
-      transition: background 0.2s;
-      /* 防止触摸缩放延迟 */
-      touch-action: manipulation; 
-    }
-    .resp-btn:active {
-      background: rgba(255, 255, 255, 0.5);
-    }
-
-    /* ---------------------- */
-    /* 3. 休息 & 结束界面 */
-    /* ---------------------- */
-    #breakScreen, #endScreen {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.9);
-      color: white;
-      display: none; /* 默认隐藏 */
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9000;
-    }
-    #breakScreen h2, #endScreen h2 {
-      font-size: 32px;
-      margin-bottom: 20px;
-    }
-    .overlay-btn {
-      padding: 12px 30px;
-      font-size: 18px;
-      border-radius: 6px;
-      border: none;
-      background: #eee;
-      color: #333;
-      cursor: pointer;
-      margin-top: 20px;
-    }
-
-  </style>
+</style>
 </head>
 <body>
+<div id="app">
+    <section id="startScreen" class="active">
+        <h1>Gabor Information-Integration Task</h1>
+        <p>请输入编号并选择 Session，点击开始即可。</p>
+        <form id="startForm">
+            <div>
+                <label for="participantInput">被试编号</label>
+                <input id="participantInput" type="text" required autocomplete="off" />
+            </div>
+            <div>
+                <label for="sessionSelect">Session</label>
+                <select id="sessionSelect" required>
+                    <option value="1">Session 1</option>
+                    <option value="2">Session 2</option>
+                </select>
+            </div>
+            <button type="submit" id="startBtn">开始实验</button>
+        </form>
+    </section>
 
-  <div id="startScreen">
-    <h1>Gabor Category Learning (II)</h1>
-    
-    <div class="input-group">
-      <label for="participantInput">被试编号 (如: 112, B202)</label>
-      <input type="text" id="participantInput" placeholder="输入编号" autocomplete="off">
-    </div>
+    <section id="experimentScreen">
+        <div id="canvasHolder">
+            <canvas id="stimulusCanvas"></canvas>
+            <div id="feedbackOverlay"></div>
+            <div id="breakOverlay">
+                <div>休息一下</div>
+                <button id="continueBtn">继续</button>
+            </div>
+            <div id="touchButtons">
+                <button class="touchBtn" data-choice="a">A</button>
+                <button class="touchBtn" data-choice="b">B</button>
+            </div>
+        </div>
+    </section>
 
-    <div class="input-group">
-      <label for="sessionInput">Session (1 or 2)</label>
-      <select id="sessionInput">
-        <option value="1">Session 1 (第1次来)</option>
-        <option value="2">Session 2 (第2次来)</option>
-      </select>
-    </div>
-    
-    <div id="errorMsg"></div>
-    <button id="startButton">开始实验</button>
-  </div>
-
-  <div id="experimentContainer">
-    <div id="canvasWrapper">
-      <canvas id="gaborCanvas"></canvas>
-      <div id="feedbackOverlay">正确</div>
-    </div>
-    
-    <div id="responseButtons">
-      <button class="resp-btn" onmousedown="handleResponse('a')" ontouchstart="handleResponse('a')">A</button>
-      <button class="resp-btn" onmousedown="handleResponse('b')" ontouchstart="handleResponse('b')">B</button>
-    </div>
-  </div>
-
-  <div id="breakScreen">
-    <h2 id="breakText">休息一下</h2>
-    <p id="breakProgress"></p>
-    <button class="overlay-btn" onclick="resumeExperiment()">继续</button>
-  </div>
-
-  <div id="endScreen">
-    <h2>实验结束</h2>
-    <p>感谢您的参与！</p>
-    <button class="overlay-btn" onclick="downloadData()">下载数据</button>
-  </div>
-
+    <section id="finishScreen">
+        <div class="top-right"><button id="downloadBtn">重新下载</button></div>
+        <h1>感谢参与！</h1>
+        <p>数据已自动保存。</p>
+    </section>
+</div>
 <script>
-// ============================================================================
-// 0. 核心配置 (固定种子，确保所有人题目一样)
-// ============================================================================
-let _seed = 123456789; // 勿改
-function seededRandom() {
-  _seed = (_seed * 9301 + 49297) % 233280;
-  return _seed / 233280;
-}
-// 标准正态分布
-function randn_bm() {
-    let u = 0, v = 0;
-    while(u === 0) u = seededRandom(); 
-    while(v === 0) v = seededRandom();
-    return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
-}
-// 数组洗牌
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(seededRandom() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-}
+// 配置
+const CFG = Object.freeze({
+    TOTAL_TRIALS: 400,
+    BREAK_EVERY: 50,
+    FIX_MS: 500,
+    FB_MS: 700,
+    DELAY_MS: 2000,
+    BACKGROUND: '#cfcfcf',
+    CANVAS_SCALE: 0.8,
+    STIM_LIMIT_MS: 4000,
+    SEED: 123456789
+});
 
-// ============================================================================
-// 1. 实验参数
-// ============================================================================
-const N_TOTAL_TRIALS = 400;
-const BLOCK_SIZE = 50; 
-const N_BLOCKS = N_TOTAL_TRIALS / BLOCK_SIZE;
-
-const FIXATION_MS = 500;  // 注视点时间
-const FEEDBACK_MS = 700;  // 反馈时间
-// 物理范围: SF 3-7, Ori -45~+45
-const PHY = { sfMin: 3.0, sfMax: 7.0, oriMin: -45, oriMax: 45 };
-
-// ============================================================================
-// 2. 刺激生成 (II 任务 - 椭圆分布 GLC)
-// ============================================================================
-function mapToPhysical(rawX, rawY, label) {
-    // 限制在 0-100
-    rawX = Math.max(0, Math.min(100, rawX));
-    rawY = Math.max(0, Math.min(100, rawY));
-    
-    // 线性映射
-    let sf = PHY.sfMin + (rawX / 100) * (PHY.sfMax - PHY.sfMin);
-    let ori = PHY.oriMin + (rawY / 100) * (PHY.oriMax - PHY.oriMin);
-    
-    // 保留3位小数
-    sf = Math.round(sf * 1000) / 1000;
-    ori = Math.round(ori * 1000) / 1000;
-    
-    return {
-        sf: sf,
-        ori: ori,
-        label: label,
-        correctKey: (label === 'A' ? 'a' : 'b')
-    };
-}
-
-function generateStimuliPool() {
-    const list = [];
-    const nPerCat = N_TOTAL_TRIALS / 2; 
-    
-    // 椭圆分布参数
-    const dist = 9;           // 中心距离
-    const varOptimal = 30;    // 窄轴方差
-    const varOrthogonal = 300; // 长轴方差 (拉长成椭圆)
-    
-    const angle = Math.PI / 4; // 旋转 45度
-    const cosT = Math.cos(angle);
-    const sinT = Math.sin(angle);
-    
-    const muA = { x: -dist, y: 0 };
-    const muB = { x: dist, y: 0 };
-    
-    for (let cat of ['A', 'B']) {
-        const mu = (cat === 'A') ? muA : muB;
-        
-        for (let i = 0; i < nPerCat; i++) {
-            let x = mu.x + randn_bm() * Math.sqrt(varOptimal);
-            let y = mu.y + randn_bm() * Math.sqrt(varOrthogonal);
-            
-            // 旋转
-            let rotX = x * cosT - y * sinT;
-            let rotY = x * sinT + y * cosT;
-            
-            // 平移回中心 50
-            let finalX = rotX + 50;
-            let finalY = rotY + 50;
-            
-            list.push(mapToPhysical(finalX, finalY, cat));
-        }
-    }
-    return shuffleArray(list);
-}
-
-// 生成全局题目池
-const TRIALS = generateStimuliPool();
-
-// ============================================================================
-// 3. 状态管理
-// ============================================================================
-let expState = {
-    pID: '',
-    isDelayed: false,
-    order: 1,
-    serial: 0,
-    session: 1,
-    condition: '', // Walking / Seated
-    
-    currIdx: 0, // 0 ~ 399
+const STATE = {
+    participant: '',
+    session: '1',
+    group: 'Immediate',
+    order: '',
+    condition: '',
+    running: false,
+    accepting: false,
+    trials: [],
     data: [],
-    
-    waitingResp: false,
-    t0: 0 // 试次开始时间
+    resolver: null,
+    timer: null,
+    lastFilename: '',
+    breakResolver: null
 };
 
-// Canvas 上下文
-let cvs, ctx;
+const startScreen = document.getElementById('startScreen');
+const experimentScreen = document.getElementById('experimentScreen');
+const finishScreen = document.getElementById('finishScreen');
+const participantInput = document.getElementById('participantInput');
+const sessionSelect = document.getElementById('sessionSelect');
+const startForm = document.getElementById('startForm');
+const stimulusCanvas = document.getElementById('stimulusCanvas');
+const canvasHolder = document.getElementById('canvasHolder');
+const feedbackOverlay = document.getElementById('feedbackOverlay');
+const breakOverlay = document.getElementById('breakOverlay');
+const continueBtn = document.getElementById('continueBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const touchButtons = document.querySelectorAll('.touchBtn');
 
-// 绑定开始按钮
-document.getElementById('startButton').addEventListener('click', startExperiment);
+const ctx = stimulusCanvas.getContext('2d');
+let canvasInfo = { cx: 0, cy: 0, diameter: 0, cssDiameter: 0, dpr: 1 };
 
-function startExperiment() {
-    const pidInput = document.getElementById('participantInput').value.trim().toUpperCase();
-    const sessInput = document.getElementById('sessionInput').value;
-    const errDiv = document.getElementById('errorMsg');
-    
-    // 简单校验
-    if (pidInput.length < 2) {
-        errDiv.textContent = "编号太短！请输入如 101, B202";
-        return;
-    }
-    
-    // 解析 ID
-    let isDelayed = false;
-    let coreID = pidInput;
-    if (pidInput.startsWith('B')) {
-        isDelayed = true;
-        coreID = pidInput.substring(1);
-    }
-    
-    const orderDigit = parseInt(coreID.charAt(0));
-    const serial = parseInt(coreID.substring(1));
-    
-    if (orderDigit !== 1 && orderDigit !== 2) {
-        errDiv.textContent = "首位数字必须是 1 或 2！";
-        return;
-    }
-    
-    // 保存状态
-    expState.pID = pidInput;
-    expState.isDelayed = isDelayed;
-    expState.order = orderDigit;
-    expState.serial = serial;
-    expState.session = parseInt(sessInput);
-    
-    // 判定条件
-    // Order 1: S1=Walking, S2=Seated
-    // Order 2: S1=Seated,  S2=Walking
-    if (expState.order === 1) {
-        expState.condition = (expState.session === 1) ? 'Walking' : 'Seated';
-    } else {
-        expState.condition = (expState.session === 1) ? 'Seated' : 'Walking';
-    }
-    
-    // 切换界面
-    document.getElementById('startScreen').style.display = 'none';
-    document.getElementById('experimentContainer').style.display = 'flex';
-    
-    // 初始化画布
-    initCanvas();
-    
-    // 开始第一个试次
-    nextTrial();
+function setActive(section) {
+    [startScreen, experimentScreen, finishScreen].forEach(sec => sec.classList.remove('active'));
+    section.classList.add('active');
 }
 
-// ============================================================================
-// 4. 实验流程
-// ============================================================================
-
-function initCanvas() {
-    cvs = document.getElementById('gaborCanvas');
-    ctx = cvs.getContext('2d');
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-}
-
-function resizeCanvas() {
-    cvs.width = window.innerWidth;
-    cvs.height = window.innerHeight;
+function updateCanvasSize() {
+    const dpr = window.devicePixelRatio || 1;
+    const side = Math.min(canvasHolder.clientWidth, canvasHolder.clientHeight) * CFG.CANVAS_SCALE;
+    const pixel = Math.max(1, Math.round(side * dpr));
+    stimulusCanvas.width = pixel;
+    stimulusCanvas.height = pixel;
+    stimulusCanvas.style.width = `${Math.round(side)}px`;
+    stimulusCanvas.style.height = `${Math.round(side)}px`;
+    ctx.setTransform(1,0,0,1,0,0);
+    canvasInfo = { cx: pixel/2, cy: pixel/2, diameter: pixel, cssDiameter: side, dpr };
     clearCanvas();
 }
 
 function clearCanvas() {
-    ctx.fillStyle = '#808080'; // 灰色背景
-    ctx.fillRect(0, 0, cvs.width, cvs.height);
+    ctx.fillStyle = CFG.BACKGROUND;
+    ctx.fillRect(0,0,canvasInfo.diameter, canvasInfo.diameter);
 }
 
-// 绘制注视点
-function drawFixation() {
-    clearCanvas();
-    ctx.fillStyle = '#000'; // 黑色注视点
-    ctx.fillRect(cvs.width/2 - 4, cvs.height/2 - 4, 8, 8);
+// RNG
+function mulberry32(a){
+    return function(){
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+const rng = mulberry32(CFG.SEED);
+
+function boxMuller(r){
+    let u = 0, v = 0;
+    while(u === 0) u = r();
+    while(v === 0) v = r();
+    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
-// 绘制 Gabor (核心绘图)
-function drawGabor(sf, ori_deg) {
+function sample2D(mean, rot, sd) {
+    const z1 = boxMuller(rng);
+    const z2 = boxMuller(rng);
+    const x = sd[0] * z1;
+    const y = sd[1] * z2;
+    return {
+        x: mean.x + rot[0][0]*x + rot[0][1]*y,
+        y: mean.y + rot[1][0]*x + rot[1][1]*y
+    };
+}
+
+function mapToStim(v){
+    const x = Math.min(100, Math.max(0, v.x));
+    const y = Math.min(100, Math.max(0, v.y));
+    const sf = 3 + (x/100)*4; // 3..7 cpd
+    const ori = -45 + (y/100)*90; // -45..45 deg
+    return { sf: Number(sf.toFixed(3)), ori: Number(ori.toFixed(3)) };
+}
+
+function generateTrials(){
+    const trials = [];
+    const d = 9/2;
+    const meanA = { x: 50 - d, y: 50 - d };
+    const meanB = { x: 50 + d, y: 50 + d };
+    const theta = Math.PI/4;
+    const c = Math.cos(theta), s = Math.sin(theta);
+    const rot = [[c, -s],[s,c]];
+    const sd = [Math.sqrt(300), Math.sqrt(30)];
+    for(let i=0;i<CFG.TOTAL_TRIALS/2;i++){
+        const a = sample2D(meanA, rot, sd);
+        const b = sample2D(meanB, rot, sd);
+        trials.push({cat:'A', raw:a});
+        trials.push({cat:'B', raw:b});
+    }
+    // deterministic shuffle
+    for(let i=trials.length-1;i>0;i--){
+        const j = Math.floor(rng()*(i+1));
+        [trials[i],trials[j]]=[trials[j],trials[i]];
+    }
+    return trials.map((t, idx)=>{
+        const stim = mapToStim(t.raw);
+        return {
+            blockIndex: Math.floor(idx/CFG.BREAK_EVERY)+1,
+            trialIndex: idx+1,
+            label: t.cat,
+            sf: stim.sf,
+            ori: stim.ori
+        };
+    });
+}
+
+function drawFixation(){
     clearCanvas();
-    
-    const size = 300; // 补丁大小
-    const sigma = 45; // 高斯包络标准差
-    const contrast = 127; 
-    
-    // 转换坐标系
-    // SF 是 cpd，这里简单缩放：freq = sf * 0.04
-    const freq = sf * 0.04;
-    const rad = ori_deg * (Math.PI / 180);
-    
-    const imgData = ctx.createImageData(size, size);
-    const d = imgData.data;
-    const cx = size / 2;
-    const cy = size / 2;
-    
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
+    const size = Math.max(2, Math.round(canvasInfo.diameter*0.02));
+    ctx.fillStyle = '#000';
+    ctx.fillRect(canvasInfo.cx - size/2, canvasInfo.cy - size/2, size, size);
+}
+
+function drawGabor(sf, oriDeg){
+    const size = canvasInfo.diameter;
+    const image = ctx.createImageData(size, size);
+    const data = image.data;
+    const cycles = sf/2; // 每直径条纹数换算为周期数
+    const freq = cycles / size;
+    const theta = oriDeg * Math.PI/180;
+    const cosT = Math.cos(theta), sinT = Math.sin(theta);
+    const sigma = size * 0.18;
+    const cx = size/2, cy = size/2;
+    for(let y=0;y<size;y++){
+        for(let x=0;x<size;x++){
             const dx = x - cx;
             const dy = y - cy;
-            
-            // 旋转公式
-            const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
-            
-            // Gabor = SinWave * Gaussian
-            const grating = Math.sin(2 * Math.PI * freq * rx);
-            const envelope = Math.exp(-(dx*dx + dy*dy) / (2 * sigma * sigma));
-            
-            const val = 128 + contrast * grating * envelope;
-            
-            const idx = (y * size + x) * 4;
-            d[idx] = val;
-            d[idx+1] = val;
-            d[idx+2] = val;
-            d[idx+3] = 255;
+            const xr = dx * cosT + dy * sinT;
+            const yr = -dx * sinT + dy * cosT;
+            const g = Math.exp(-(xr*xr + yr*yr)/(2*sigma*sigma));
+            const phase = 2 * Math.PI * freq * xr;
+            const val = g * Math.cos(phase);
+            const gray = Math.round(128 + 110 * val);
+            const idx = (y*size + x)*4;
+            data[idx] = data[idx+1] = data[idx+2] = gray;
+            data[idx+3] = 255;
         }
     }
-    
-    ctx.putImageData(imgData, (cvs.width - size)/2, (cvs.height - size)/2);
+    ctx.putImageData(image,0,0);
+    ctx.lineWidth = Math.max(2, size*0.01);
+    ctx.strokeStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(cx, cy, size/2 - ctx.lineWidth, 0, Math.PI*2);
+    ctx.stroke();
 }
 
-function nextTrial() {
-    // 检查结束
-    if (expState.currIdx >= N_TOTAL_TRIALS) {
-        endExperiment();
-        return;
-    }
-    
-    // 检查 Block 休息
-    // 从第 50, 100... 个试次开始前休息
-    if (expState.currIdx > 0 && expState.currIdx % BLOCK_SIZE === 0) {
-        showBreak();
-        return;
-    }
-    
-    const stim = TRIALS[expState.currIdx];
-    
-    // 1. 注视点 500ms
-    drawFixation();
-    
-    setTimeout(() => {
-        // 2. 呈现 Gabor
-        drawGabor(stim.sf, stim.ori);
-        expState.t0 = performance.now(); // 计时开始
-        expState.waitingResp = true;
-        
-    }, FIXATION_MS);
+function showFeedback(correct){
+    feedbackOverlay.textContent = correct ? 'Correct' : 'Wrong';
+    feedbackOverlay.classList.remove('show','correct','wrong');
+    feedbackOverlay.classList.add('show', correct ? 'correct' : 'wrong');
+}
+function hideFeedback(){
+    feedbackOverlay.classList.remove('show','correct','wrong');
 }
 
-// 处理按键
-function handleResponse(key) {
-    if (!expState.waitingResp) return; // 防止重复点击
-    
-    expState.waitingResp = false;
-    const rt = performance.now() - expState.t0;
-    
-    const stim = TRIALS[expState.currIdx];
-    const correctKey = stim.correctKey;
-    const corr = (key.toLowerCase() === correctKey) ? 1 : 0;
-    
-    // 记录
-    saveData(stim, key, corr, rt);
-    
-    // 决定反馈延迟
-    // Delayed 组 = 2000ms, 普通组 = 0ms
-    const delayMs = expState.isDelayed ? 2000 : 0;
-    
-    clearCanvas(); // 反应后立刻清屏
-    
-    // 等待延迟后显示反馈
-    setTimeout(() => {
-        showFeedback(corr);
-    }, delayMs);
+function wait(ms){ return new Promise(res=>setTimeout(res, ms)); }
+
+function handleResponse(key){
+    if(!STATE.accepting || !STATE.resolver) return;
+    STATE.accepting=false;
+    if(STATE.timer){ clearTimeout(STATE.timer); STATE.timer=null; }
+    STATE.resolver({key, timeout:false});
+    STATE.resolver=null;
 }
 
-function showFeedback(corr) {
-    const fb = document.getElementById('feedbackOverlay');
-    fb.textContent = corr ? "正确" : "错误";
-    fb.style.color = corr ? "#00ff00" : "#ff0000";
-    fb.style.opacity = 1;
-    
-    setTimeout(() => {
-        fb.style.opacity = 0;
-        expState.currIdx++;
-        nextTrial(); // 进入下一试次
-    }, FEEDBACK_MS);
-}
-
-// 数据存储
-function saveData(stim, resp, corr, rt) {
-    expState.data.push({
-        participant: expState.pID,
-        group: expState.isDelayed ? 'Delayed' : 'Immediate',
-        order: expState.order,
-        session: expState.session,
-        condition: expState.condition,
-        trial: expState.currIdx + 1,
-        block: Math.floor(expState.currIdx / BLOCK_SIZE) + 1,
-        sf: stim.sf,
-        ori: stim.ori,
-        label: stim.label,
-        resp: resp,
-        corr: corr,
-        rt: (rt/1000).toFixed(3)
+function waitForResponse(limitMs){
+    return new Promise(resolve=>{
+        STATE.accepting=true;
+        STATE.resolver=resolve;
+        STATE.timer=setTimeout(()=>{
+            STATE.accepting=false;
+            STATE.resolver=null;
+            resolve({key:'NA', timeout:true});
+        }, limitMs);
     });
 }
 
-// ============================================================================
-// 5. 休息与结束
-// ============================================================================
-function showBreak() {
-    const doneBlocks = expState.currIdx / BLOCK_SIZE;
-    document.getElementById('breakText').textContent = `已完成 ${doneBlocks} / ${N_BLOCKS} 组`;
-    document.getElementById('breakScreen').style.display = 'flex';
+function handleKeyDown(e){
+    if(!STATE.running) return;
+    const k = e.key.toLowerCase();
+    if(k==='a' || k==='arrowleft'){ e.preventDefault(); handleResponse('a'); }
+    if(k==='b' || k==='arrowright'){ e.preventDefault(); handleResponse('b'); }
+    if(e.key==='Escape'){ e.preventDefault(); finishExperiment(); }
 }
 
-function resumeExperiment() {
-    document.getElementById('breakScreen').style.display = 'none';
-    nextTrial();
+function handlePointer(e){
+    if(!STATE.running) return;
+    const target = e.target.closest('[data-choice]');
+    if(target){
+        handleResponse(target.dataset.choice);
+        return;
+    }
+    const isLeft = e.clientX < window.innerWidth/2;
+    handleResponse(isLeft ? 'a' : 'b');
 }
 
-function endExperiment() {
-    document.getElementById('experimentContainer').style.display = 'none';
-    document.getElementById('endScreen').style.display = 'flex';
-    document.body.style.cursor = 'default';
-    downloadData();
-}
-
-function downloadData() {
-    if (expState.data.length === 0) return;
-    
-    const headers = Object.keys(expState.data[0]);
-    let csvContent = headers.join(",") + "\n";
-    
-    expState.data.forEach(row => {
-        const vals = headers.map(k => row[k]);
-        csvContent += vals.join(",") + "\n";
-    });
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Gabor_${expState.pID}_${expState.condition}_S${expState.session}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-// 键盘监听 (A/B 键)
-window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'a') handleResponse('a');
-    if (e.key.toLowerCase() === 'b') handleResponse('b');
+document.addEventListener('keydown', handleKeyDown);
+document.addEventListener('pointerdown', handlePointer);
+window.addEventListener('resize', updateCanvasSize);
+window.addEventListener('beforeunload', ()=>{
+    if(!STATE.data.length) return;
+    const ts = new Date().toISOString().replace(/[:.]/g,'-');
+    const name = `gabor_${STATE.participant||'session'}_${ts}.csv`;
+    downloadCSV(name, STATE.data);
 });
 
+touchButtons.forEach(btn=>btn.addEventListener('click', e=>{
+    e.preventDefault();
+    handleResponse(btn.dataset.choice);
+}));
+
+continueBtn.addEventListener('click', ()=>{
+    if(!STATE.running) return;
+    breakOverlay.style.display='none';
+    if(STATE.breakResolver){ STATE.breakResolver(); STATE.breakResolver=null; }
+});
+
+function determineOrder(participant){
+    const firstDigit = (participant.match(/\d/)||[])[0];
+    if(firstDigit==='1') return '1';
+    if(firstDigit==='2') return '2';
+    return '';
+}
+
+function deriveCondition(order, session){
+    if(order==='1') return session==='1' ? 'Walking' : 'Seated';
+    if(order==='2') return session==='1' ? 'Seated' : 'Walking';
+    return '';
+}
+
+startForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const pid = participantInput.value.trim();
+    if(!pid) return;
+    STATE.participant = pid;
+    STATE.session = sessionSelect.value;
+    STATE.group = /^b/i.test(pid) ? 'Delayed' : 'Immediate';
+    STATE.order = determineOrder(pid);
+    STATE.condition = deriveCondition(STATE.order, STATE.session);
+    STATE.trials = generateTrials();
+    STATE.data = [];
+    STATE.lastFilename='';
+    STATE.running=true;
+    setActive(experimentScreen);
+    updateCanvasSize();
+    runLoop();
+});
+
+async function runLoop(){
+    for(const trial of STATE.trials){
+        if(!STATE.running) break;
+        await runTrial(trial);
+        if(trial.trialIndex % CFG.BREAK_EVERY === 0 && trial.trialIndex !== STATE.trials.length){
+            await runBreak();
+        }
+    }
+    finishExperiment();
+}
+
+async function runBreak(){
+    breakOverlay.style.display='flex';
+    await new Promise(res=>{ STATE.breakResolver=res; });
+}
+
+async function runTrial(trial){
+    hideFeedback();
+    drawFixation();
+    const trialStart = new Date().toISOString();
+    await wait(CFG.FIX_MS);
+    clearCanvas();
+    drawGabor(trial.sf, trial.ori);
+    const stimStart = performance.now();
+    const resp = await waitForResponse(CFG.STIM_LIMIT_MS);
+    const rt = resp.timeout ? '' : ((performance.now()-stimStart)/1000).toFixed(3);
+    clearCanvas();
+    if(STATE.group==='Delayed'){ await wait(CFG.DELAY_MS); }
+    const correct = !resp.timeout && ((trial.label==='A' && resp.key==='a') || (trial.label==='B' && resp.key==='b'));
+    showFeedback(correct);
+    await wait(CFG.FB_MS);
+    hideFeedback();
+    clearCanvas();
+    const row = {
+        participant: STATE.participant,
+        group: STATE.group,
+        order: STATE.order,
+        session: STATE.session,
+        condition: STATE.condition,
+        trial_index: trial.trialIndex,
+        block_index: trial.blockIndex,
+        sf: trial.sf,
+        ori: trial.ori,
+        category_label: trial.label,
+        response: resp.key,
+        accuracy: resp.timeout ? 0 : (correct ? 1 : 0),
+        rt: rt
+    };
+    STATE.data.push(row);
+}
+
+function buildCSV(rows){
+    const headers = ['participant','group','order','session','condition','trial_index','block_index','sf','ori','category_label','response','accuracy','rt'];
+    const lines=[headers.join(',')];
+    for(const r of rows){
+        lines.push(headers.map(h=>r[h] ?? '').join(','));
+    }
+    return lines.join('\n');
+}
+
+function downloadCSV(filename, rows){
+    if(!rows.length) return;
+    const csv = buildCSV(rows);
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+
+function finishExperiment(){
+    if(!STATE.running) return;
+    STATE.running=false;
+    STATE.accepting=false;
+    if(STATE.timer){ clearTimeout(STATE.timer); STATE.timer=null; }
+    const ts = new Date().toISOString().replace(/[:.]/g,'-');
+    const name = `gabor_${STATE.participant||'session'}_${ts}.csv`;
+    STATE.lastFilename = name;
+    downloadCSV(name, STATE.data);
+    setActive(finishScreen);
+}
+
+downloadBtn.addEventListener('click', ()=>{
+    const name = STATE.lastFilename || `gabor_${STATE.participant||'session'}_${Date.now()}.csv`;
+    downloadCSV(name, STATE.data);
+});
+
+updateCanvasSize();
 </script>
 </body>
 </html>
